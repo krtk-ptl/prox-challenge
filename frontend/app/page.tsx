@@ -167,19 +167,42 @@ export default function Home() {
     return { content: text };
   }
 
+  /**
+   * Build conversation history to send to backend.
+   * Sends raw content (including artifact tags) so the backend can strip them.
+   * Skips the initial greeting message (index 0).
+   */
+  function buildHistory(currentMessages: Message[]): { role: string; content: string }[] {
+    const conversationMessages = currentMessages.slice(1);
+
+    return conversationMessages.map((msg) => ({
+      role: msg.role,
+      content: msg.artifact
+        ? `${msg.content}\n<artifact type="react">${msg.artifact}</artifact>`
+        : msg.content,
+    }));
+  }
+
   async function sendMessage() {
     if (!input.trim() || loading) return;
 
     const userMessage: Message = { role: "user", content: input };
-    setMessages((prev) => [...prev, userMessage]);
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
     setInput("");
     setLoading(true);
 
     try {
+      // Build history from all messages BEFORE this new user message
+      const history = buildHistory(messages);
+
       const res = await fetch(`${API_URL}/query`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: input }),
+        body: JSON.stringify({
+          question: input,
+          history: history,
+        }),
       });
 
       if (!res.ok) throw new Error(`Server error: ${res.status}`);

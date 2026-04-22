@@ -1,10 +1,12 @@
 import os
+import re
 import chromadb
 from anthropic import Anthropic
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from typing import Optional
 
 load_dotenv()
 
@@ -31,8 +33,19 @@ client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 chroma = chromadb.PersistentClient(path="./chroma_db")
 collection = chroma.get_or_create_collection(name="vulcan_manual")
 
+
+# --- Request models ---
+
+class ChatMessage(BaseModel):
+    role: str  # "user" or "assistant"
+    content: str
+
 class QueryRequest(BaseModel):
     question: str
+    history: Optional[list[ChatMessage]] = None  # conversation history
+
+
+# --- Question classifier ---
 
 def classify_question(question: str) -> str:
     q = question.lower()
@@ -45,6 +58,9 @@ def classify_question(question: str) -> str:
     if any(w in q for w in ["settings", "voltage", "wire speed", "thickness", "material", "steel", "aluminum", "stainless", "configure", "recommend", "what should i set"]):
         return "settings"
     return "general"
+
+
+# --- Artifact prompts (per question type) ---
 
 ARTIFACT_PROMPTS = {
     "polarity": """
@@ -85,6 +101,7 @@ You MUST generate a React artifact with an interactive troubleshooting flowchart
 Start with the reported symptom, then show Yes/No decision nodes leading to specific fixes.
 Use the manual's troubleshooting section data.
 Style as a step-by-step clickable flow, not a static list.
+IMPORTANT: Every path in the flowchart must lead to a concrete resolution or a "Contact Vulcan support" fallback. No dead ends.
 
 Format your artifact EXACTLY like this:
 <artifact type="react">
@@ -125,11 +142,56 @@ function Component() {
 """
 }
 
+
+# --- System prompt with ambiguity handling ---
+
 BASE_SYSTEM = """You are an expert assistant for the Vulcan OmniPro 220 multiprocess welder.
 The user is in their garage, just bought this welder, needs clear practical help.
-Be direct and practical. Reference specific page numbers from the manual.
+Be direct and practical. Reference specific page numbers from the manual when possible.
 Always answer the text question FIRST with a clear explanation, then show the artifact below.
-Use markdown formatting: **bold** for emphasis, bullet lists for steps."""
+Use markdown formatting: **bold** for emphasis, bullet lists for steps.
+
+AMBIGUITY HANDLING:
+If the user's question is vague or could apply to multiple welding processes (MIG, Flux-Core, TIG, Stick), ASK a clarifying question before answering. Examples:
+- "How do I set it up?" → Ask which welding process they plan to use
+- "What settings should I use?" → Ask what material, thickness, and process
+- "It's not working" → Ask what specific symptom they're seeing
+Do NOT guess when the answer depends on which process, voltage, or material. Ask first.
+However, if the conversation history already contains the answer (e.g., they mentioned MIG earlier), use that context and don't ask again.
+
+CONVERSATION CONTEXT:
+You have access to the recent conversation history. Use it to:
+- Understand follow-up questions ("what about for TIG?" after discussing MIG polarity)
+- Avoid asking for info the user already provided
+- Maintain coherent multi-turn conversations"""
+
+
+# --- Build message history for Claude ---
+
+def build_messages(question: str, context: str, history: list[ChatMessage] | None) -> list[dict]:
+    """Build the messages array with conversation history + current question with RAG context."""
+    messages = []
+
+    if history:
+        # Take last 8 messages (4 user + 4 assistant turns)
+        recent = history[-8:]
+        for msg in recent:
+            # Strip artifact tags from assistant history — Claude doesn't need old React code
+            content = msg.content
+            if msg.role == "assistant":
+                content = re.sub(r'<artifact type="react">[\s\S]*?</artifact>', '[interactive artifact was shown]', content)
+            messages.append({"role": msg.role, "content": content})
+
+    # Current question always includes RAG context
+    messages.append({
+        "role": "user",
+        "content": f"Context from manual:\n{context}\n\nQuestion: {question}"
+    })
+
+    return messages
+
+
+# --- Main query endpoint ---
 
 @app.post("/query")
 async def query(request: QueryRequest):
@@ -151,16 +213,13 @@ async def query(request: QueryRequest):
 
     system_prompt = BASE_SYSTEM + "\n\n" + ARTIFACT_PROMPTS[question_type]
 
+    messages = build_messages(request.question, context, request.history)
+
     response = client.messages.create(
         model=MODEL,
         max_tokens=4096,
         system=system_prompt,
-        messages=[
-            {
-                "role": "user",
-                "content": f"Context from manual:\n{context}\n\nQuestion: {request.question}"
-            }
-        ]
+        messages=messages
     )
 
     answer = response.content[0].text
@@ -170,6 +229,7 @@ async def query(request: QueryRequest):
         "model": MODEL,
         "tokens_used": response.usage.input_tokens + response.usage.output_tokens
     }
+
 
 @app.get("/health")
 async def health():
