@@ -43,6 +43,8 @@ class ChatMessage(BaseModel):
 class QueryRequest(BaseModel):
     question: str
     history: Optional[list[ChatMessage]] = None  # conversation history
+    image: Optional[str] = None  # base64 encoded image (JPEG/PNG)
+    image_type: Optional[str] = None  # "image/jpeg", "image/png", etc.
 
 
 # --- Question classifier ---
@@ -163,12 +165,21 @@ CONVERSATION CONTEXT:
 You have access to the recent conversation history. Use it to:
 - Understand follow-up questions ("what about for TIG?" after discussing MIG polarity)
 - Avoid asking for info the user already provided
-- Maintain coherent multi-turn conversations"""
+- Maintain coherent multi-turn conversations
+
+IMAGE INPUT:
+When the user uploads an image, analyze it carefully and HONESTLY. Do not default to praise or criticism — assess objectively based on what you actually see.
+- Describe what you observe in the image first
+- If it shows a weld: assess quality honestly — list ONLY defects you can actually see, or confirm it's good if it genuinely is. Never invent problems.
+- If it shows the welder, settings panel, setup, or assembly: read what's visible and advise accordingly
+- If it shows damaged/broken parts: identify the issue and suggest a fix referencing the manual
+- If you're unsure what the image shows, ask the user to clarify
+Always cross-reference what you see with the manual context provided."""
 
 
 # --- Build message history for Claude ---
 
-def build_messages(question: str, context: str, history: list[ChatMessage] | None) -> list[dict]:
+def build_messages(question: str, context: str, history: list[ChatMessage] | None, image: str | None = None, image_type: str | None = None) -> list[dict]:
     """Build the messages array with conversation history + current question with RAG context."""
     messages = []
 
@@ -182,11 +193,31 @@ def build_messages(question: str, context: str, history: list[ChatMessage] | Non
                 content = re.sub(r'<artifact type="react">[\s\S]*?</artifact>', '[interactive artifact was shown]', content)
             messages.append({"role": msg.role, "content": content})
 
-    # Current question always includes RAG context
-    messages.append({
-        "role": "user",
-        "content": f"Context from manual:\n{context}\n\nQuestion: {question}"
+    # Current question — with image if provided
+    user_content = []
+
+    # Add image first if present
+    if image and image_type:
+        user_content.append({
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": image_type,
+                "data": image,
+            },
+        })
+
+    # Add text (RAG context + question)
+    text_part = f"Context from manual:\n{context}\n\nQuestion: {question}"
+    if image:
+        text_part += "\n\n(An image has been attached above — analyze it as part of your answer.)"
+
+    user_content.append({
+        "type": "text",
+        "text": text_part,
     })
+
+    messages.append({"role": "user", "content": user_content})
 
     return messages
 
@@ -213,7 +244,13 @@ async def query(request: QueryRequest):
 
     system_prompt = BASE_SYSTEM + "\n\n" + ARTIFACT_PROMPTS[question_type]
 
-    messages = build_messages(request.question, context, request.history)
+    messages = build_messages(
+        question=request.question,
+        context=context,
+        history=request.history,
+        image=request.image,
+        image_type=request.image_type,
+    )
 
     response = client.messages.create(
         model=MODEL,

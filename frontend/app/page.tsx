@@ -7,6 +7,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   artifact?: string;
+  imagePreview?: string; // data URL for displaying uploaded image in chat
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -115,6 +116,16 @@ function MessageBubble({ message }: { message: Message }) {
               : "bg-gray-800 text-gray-100 border border-gray-700"
           }`}
         >
+          {/* Show uploaded image in user bubble */}
+          {message.imagePreview && (
+            <div className="mb-2">
+              <img
+                src={message.imagePreview}
+                alt="Uploaded"
+                className="max-w-xs max-h-48 rounded-lg border border-orange-300/30"
+              />
+            </div>
+          )}
           {message.role === "user" ? (
             <p className="whitespace-pre-wrap text-sm leading-relaxed">
               {textContent}
@@ -138,12 +149,18 @@ export default function Home() {
     {
       role: "assistant",
       content:
-        "Hey! I'm your **Vulcan OmniPro 220** assistant. Ask me anything — setup, settings, troubleshooting, duty cycles. What do you need?",
+        "Hey! I'm your **Vulcan OmniPro 220** assistant. Ask me anything — setup, settings, troubleshooting, duty cycles. You can also **upload a photo** of your weld or settings panel for analysis. What do you need?",
     },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<{
+    base64: string;
+    type: string;
+    preview: string;
+  } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -167,14 +184,8 @@ export default function Home() {
     return { content: text };
   }
 
-  /**
-   * Build conversation history to send to backend.
-   * Sends raw content (including artifact tags) so the backend can strip them.
-   * Skips the initial greeting message (index 0).
-   */
   function buildHistory(currentMessages: Message[]): { role: string; content: string }[] {
     const conversationMessages = currentMessages.slice(1);
-
     return conversationMessages.map((msg) => ({
       role: msg.role,
       content: msg.artifact
@@ -183,26 +194,80 @@ export default function Home() {
     }));
   }
 
-  async function sendMessage() {
-    if (!input.trim() || loading) return;
+  function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    const userMessage: Message = { role: "user", content: input };
-    const updatedMessages = [...messages, userMessage];
-    setMessages(updatedMessages);
+    // Validate file type
+    const validTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!validTypes.includes(file.type)) {
+      alert("Please upload a JPEG, PNG, or WebP image.");
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image must be under 5MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      // dataUrl format: "data:image/jpeg;base64,/9j/4AAQ..."
+      const base64 = dataUrl.split(",")[1];
+      setSelectedImage({
+        base64,
+        type: file.type,
+        preview: dataUrl,
+      });
+    };
+    reader.readAsDataURL(file);
+
+    // Reset file input so same file can be re-selected
+    e.target.value = "";
+  }
+
+  function clearImage() {
+    setSelectedImage(null);
+  }
+
+  async function sendMessage() {
+    if ((!input.trim() && !selectedImage) || loading) return;
+
+    const questionText = input.trim() || "Analyze this image in the context of the Vulcan OmniPro 220 welder. Describe what you see and provide relevant advice.";
+    
+    const userMessage: Message = {
+      role: "user",
+      content: questionText,
+      imagePreview: selectedImage?.preview,
+    };
+    setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setLoading(true);
 
+    // Capture image data before clearing
+    const imageData = selectedImage;
+    setSelectedImage(null);
+
     try {
-      // Build history from all messages BEFORE this new user message
       const history = buildHistory(messages);
+
+      const body: Record<string, unknown> = {
+        question: questionText,
+        history: history,
+      };
+
+      // Attach image if present
+      if (imageData) {
+        body.image = imageData.base64;
+        body.image_type = imageData.type;
+      }
 
       const res = await fetch(`${API_URL}/query`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question: input,
-          history: history,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
@@ -272,7 +337,9 @@ export default function Home() {
                   className="w-2 h-2 bg-orange-400 rounded-full animate-bounce"
                   style={{ animationDelay: "300ms" }}
                 ></div>
-                <span className="text-xs text-gray-500 ml-2">Thinking...</span>
+                <span className="text-xs text-gray-500 ml-2">
+                  {selectedImage ? "Analyzing image..." : "Thinking..."}
+                </span>
               </div>
             </div>
           </div>
@@ -280,15 +347,66 @@ export default function Home() {
         <div ref={bottomRef} />
       </div>
 
+      {/* Image preview bar */}
+      {selectedImage && (
+        <div className="border-t border-gray-800 px-6 py-2 bg-gray-900">
+          <div className="flex items-center gap-3 max-w-4xl mx-auto">
+            <img
+              src={selectedImage.preview}
+              alt="Selected"
+              className="w-16 h-16 object-cover rounded-lg border border-gray-600"
+            />
+            <div className="flex-1">
+              <p className="text-gray-300 text-xs">Image attached</p>
+              <p className="text-gray-500 text-xs">Add a question or send as-is</p>
+            </div>
+            <button
+              onClick={clearImage}
+              className="text-gray-400 hover:text-red-400 text-sm px-2 py-1 transition-colors"
+              title="Remove image"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Input */}
       <div className="border-t border-gray-800 px-6 py-4">
         <div className="flex gap-3 max-w-4xl mx-auto">
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={handleImageSelect}
+            className="hidden"
+          />
+
+          {/* Upload button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={loading}
+            className="bg-gray-800 border border-gray-700 hover:border-orange-500 disabled:opacity-50 text-gray-300 hover:text-orange-400 px-3 py-3 rounded-xl text-sm transition-colors"
+            title="Upload an image"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+          </button>
+
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-            placeholder="Ask about setup, settings, troubleshooting..."
+            placeholder={
+              selectedImage
+                ? "Ask about this image (or just hit Send)..."
+                : "Ask about setup, settings, troubleshooting..."
+            }
             className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-orange-500 transition-colors"
           />
           <button
