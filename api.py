@@ -28,6 +28,8 @@ app.add_middleware(
 
 # Model from env — use haiku for dev, sonnet for production
 MODEL = os.getenv("CLAUDE_MODEL", "claude-haiku-4-5")
+# Classifier always uses Haiku regardless of MODEL — cheap, fast, no need for Sonnet
+CLASSIFIER_MODEL = "claude-haiku-4-5"
 
 client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 chroma = chromadb.PersistentClient(path="./chroma_db")
@@ -47,19 +49,36 @@ class QueryRequest(BaseModel):
     image_type: Optional[str] = None  # "image/jpeg", "image/png", etc.
 
 
-# --- Question classifier ---
+# --- Question classifier (Claude-based) ---
+
+CLASSIFIER_PROMPT = """You are a question classifier for a welding assistant chatbot about the Vulcan OmniPro 220 welder.
+
+Classify the user's question into EXACTLY ONE of these 5 categories:
+
+- polarity: questions about cable connections, which socket to use, electrode vs work clamp, DCEP/DCEN, which terminal is positive/negative, how to connect cables for MIG/TIG/Stick/Flux-Core
+- duty_cycle: questions about how long you can weld continuously, duty cycle percentages, overheating, rest time, weld time, amperage limits over time
+- troubleshoot: questions about welding defects (porosity, spatter, cracking, undercut), equipment problems (wire not feeding, arc won't start, welder won't turn on, no gas flow), bad weld quality
+- settings: questions about recommended voltage, wire speed, amperage, gas type, material thickness, welding parameters for a specific job
+- general: everything else — safety, machine overview, maintenance, comparisons, how welding works, setup questions that don't fit above
+
+Respond with ONLY the category name, nothing else. No explanation, no punctuation. Just one of: polarity, duty_cycle, troubleshoot, settings, general"""
 
 def classify_question(question: str) -> str:
-    q = question.lower()
-    if any(w in q for w in ["polarity", "cable", "socket", "ground clamp", "electrode", "connect", "plug", "tig setup", "stick setup", "mig setup", "wire feed power"]):
-        return "polarity"
-    if any(w in q for w in ["duty cycle", "how long", "overheat", "rest", "continuous", "amperage limit"]):
-        return "duty_cycle"
-    if any(w in q for w in ["porosity", "spatter", "crack", "defect", "troubleshoot", "problem", "issue", "wrong", "bad weld", "not working", "wire feed", "arc won't", "no arc", "won't start"]):
-        return "troubleshoot"
-    if any(w in q for w in ["settings", "voltage", "wire speed", "thickness", "material", "steel", "aluminum", "stainless", "configure", "recommend", "what should i set"]):
-        return "settings"
-    return "general"
+    """Classify question using Claude Haiku. ~$0.0003 per call. Always uses latest Haiku regardless of MODEL env var."""
+    try:
+        response = client.messages.create(
+            model=CLASSIFIER_MODEL,
+            max_tokens=10,  # category name is at most 12 chars
+            system=CLASSIFIER_PROMPT,
+            messages=[{"role": "user", "content": question}]
+        )
+        category = response.content[0].text.strip().lower()
+        # Validate — if Claude returns something unexpected, fall back to general
+        valid = {"polarity", "duty_cycle", "troubleshoot", "settings", "general"}
+        return category if category in valid else "general"
+    except Exception as e:
+        print(f"Classifier error: {e} — falling back to general")
+        return "general"
 
 
 # --- Artifact prompts (per question type) ---
