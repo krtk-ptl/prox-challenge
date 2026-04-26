@@ -125,10 +125,6 @@ def hybrid_search(query: str, n_results: int = 5) -> list[dict]:
                 "rrf_score": rrf_scores[doc_id],
             })
             
-    print(f"Query: {query}")
-    for r in results:
-        print(f"  RRF={r['rrf_score']:.4f} | {r['metadata']['source']} p{r['metadata']['page']} | {r['text'][:80]}...")
-
     return results
 
 
