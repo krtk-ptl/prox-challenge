@@ -9,6 +9,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from typing import Optional
+from rank_bm25 import BM25Okapi
 
 load_dotenv()
 
@@ -36,6 +37,99 @@ CLASSIFIER_MODEL = "claude-haiku-4-5"
 client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 chroma = chromadb.PersistentClient(path="./chroma_db")
 collection = chroma.get_or_create_collection(name="vulcan_manual")
+
+
+# --- BM25 index (built once at startup from ChromaDB contents) ---
+
+def build_bm25_index():
+    """Load all chunks from ChromaDB and build a BM25 index for keyword search.
+    Runs once at server startup. Cost: $0 (pure local computation).
+    """
+    all_data = collection.get(include=["documents", "metadatas"])
+    documents = all_data["documents"]
+    metadatas = all_data["metadatas"]
+    ids = all_data["ids"]
+
+    # Tokenize: simple lowercase word split. Good enough for technical terms
+    # like "DCEN", "200A", "porosity" which need exact matching.
+    tokenized = [doc.lower().split() for doc in documents]
+
+    bm25 = BM25Okapi(tokenized)
+
+    print(f"BM25 index built: {len(documents)} documents")
+    return bm25, documents, metadatas, ids
+
+
+bm25_index, bm25_documents, bm25_metadatas, bm25_ids = build_bm25_index()
+
+
+def hybrid_search(query: str, n_results: int = 5) -> list[dict]:
+    """Run both ChromaDB vector search and BM25 keyword search, merge with RRF.
+
+    Reciprocal Rank Fusion: score = sum(1 / (rank + k)) across both result lists.
+    k=60 is standard — prevents top-ranked results from dominating too heavily.
+
+    Why hybrid:
+    - Vector search handles semantic queries: "my welds are bubbly" → finds porosity content
+    - BM25 handles exact terms: "DCEN", "Dinse socket", "200A duty cycle" → verbatim match
+    - Neither alone covers both. RRF promotes chunks that appear in both lists.
+
+    Cost: $0 — both searches are local.
+    """
+    k = 60  # RRF constant
+
+    # --- Vector search via ChromaDB ---
+    vector_results = collection.query(
+        query_texts=[query],
+        n_results=min(n_results * 2, len(bm25_documents))  # fetch more candidates for better merging
+    )
+    vector_ids = vector_results["ids"][0]
+
+    # --- BM25 keyword search ---
+    tokenized_query = query.lower().split()
+    bm25_scores = bm25_index.get_scores(tokenized_query)
+
+    # Get top candidates from BM25 (same count as vector)
+    n_candidates = min(n_results * 2, len(bm25_documents))
+    # argsort descending, take top n
+    import numpy as np
+    top_bm25_indices = np.argsort(bm25_scores)[::-1][:n_candidates]
+    bm25_ranked_ids = [bm25_ids[i] for i in top_bm25_indices if bm25_scores[i] > 0]
+
+    # --- RRF merge ---
+    rrf_scores = {}
+
+    # Score from vector search
+    for rank, doc_id in enumerate(vector_ids):
+        rrf_scores[doc_id] = rrf_scores.get(doc_id, 0) + 1.0 / (rank + k)
+
+    # Score from BM25 search
+    for rank, doc_id in enumerate(bm25_ranked_ids):
+        rrf_scores[doc_id] = rrf_scores.get(doc_id, 0) + 1.0 / (rank + k)
+
+    # Sort by RRF score descending, take top n_results
+    sorted_ids = sorted(rrf_scores.keys(), key=lambda x: rrf_scores[x], reverse=True)[:n_results]
+
+    # --- Fetch full chunk data for the winning IDs ---
+    # Build a lookup from our stored data
+    id_to_idx = {doc_id: idx for idx, doc_id in enumerate(bm25_ids)}
+
+    results = []
+    for doc_id in sorted_ids:
+        idx = id_to_idx.get(doc_id)
+        if idx is not None:
+            results.append({
+                "id": doc_id,
+                "text": bm25_documents[idx],
+                "metadata": bm25_metadatas[idx],
+                "rrf_score": rrf_scores[doc_id],
+            })
+            
+    print(f"Query: {query}")
+    for r in results:
+        print(f"  RRF={r['rrf_score']:.4f} | {r['metadata']['source']} p{r['metadata']['page']} | {r['text'][:80]}...")
+
+    return results
 
 
 # --- Request models ---
@@ -250,20 +344,14 @@ async def stream_response(request: QueryRequest):
     # Step 1: Classify (non-streaming, fast)
     question_type = classify_question(request.question)
 
-    # Step 2: RAG retrieval (non-streaming, fast)
-    results = collection.query(
-        query_texts=[request.question],
-        n_results=5
-    )
-
-    chunks = results["documents"][0]
-    metadatas = results["metadatas"][0]
+    # Step 2: Hybrid RAG retrieval (vector + BM25 + RRF, all local, $0)
+    search_results = hybrid_search(request.question, n_results=5)
 
     context = ""
-    for chunk, meta in zip(chunks, metadatas):
-        source = meta.get("source", "unknown")
-        page = meta.get("page", "?")
-        context += f"[{source}, Page {page}]\n{chunk}\n\n"
+    for result in search_results:
+        source = result["metadata"].get("source", "unknown")
+        page = result["metadata"].get("page", "?")
+        context += f"[{source}, Page {page}]\n{result['text']}\n\n"
 
     system_prompt = BASE_SYSTEM + "\n\n" + ARTIFACT_PROMPTS[question_type]
 
@@ -334,5 +422,6 @@ async def health():
     return {
         "status": "ok",
         "model": MODEL,
-        "chunks_indexed": count
+        "chunks_indexed": count,
+        "search": "hybrid (vector + BM25 + RRF)",
     }
