@@ -1,9 +1,11 @@
 import os
 import re
+import json
 import chromadb
 from anthropic import Anthropic
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from typing import Optional
@@ -241,12 +243,14 @@ def build_messages(question: str, context: str, history: list[ChatMessage] | Non
     return messages
 
 
-# --- Main query endpoint ---
+# --- SSE streaming generator ---
 
-@app.post("/query")
-async def query(request: QueryRequest):
+async def stream_response(request: QueryRequest):
+    """Generator that yields SSE events with Claude's streaming tokens."""
+    # Step 1: Classify (non-streaming, fast)
     question_type = classify_question(request.question)
 
+    # Step 2: RAG retrieval (non-streaming, fast)
     results = collection.query(
         query_texts=[request.question],
         n_results=5
@@ -271,20 +275,57 @@ async def query(request: QueryRequest):
         image_type=request.image_type,
     )
 
-    response = client.messages.create(
+    # Step 3: Send metadata event (question_type, model) before tokens start
+    meta_event = json.dumps({
+        "type": "metadata",
+        "question_type": question_type,
+        "model": MODEL,
+    })
+    yield f"data: {meta_event}\n\n"
+
+    # Step 4: Stream Claude's response token by token
+    total_input_tokens = 0
+    total_output_tokens = 0
+
+    with client.messages.stream(
         model=MODEL,
         max_tokens=4096,
         system=system_prompt,
-        messages=messages
-    )
+        messages=messages,
+    ) as stream:
+        for text in stream.text_stream:
+            token_event = json.dumps({
+                "type": "token",
+                "text": text,
+            })
+            yield f"data: {token_event}\n\n"
 
-    answer = response.content[0].text
-    return {
-        "answer": answer,
-        "question_type": question_type,
-        "model": MODEL,
-        "tokens_used": response.usage.input_tokens + response.usage.output_tokens
-    }
+        # After stream ends, get final usage stats
+        final_message = stream.get_final_message()
+        total_input_tokens = final_message.usage.input_tokens
+        total_output_tokens = final_message.usage.output_tokens
+
+    # Step 5: Send done event with token usage
+    done_event = json.dumps({
+        "type": "done",
+        "tokens_used": total_input_tokens + total_output_tokens,
+    })
+    yield f"data: {done_event}\n\n"
+
+
+# --- Main query endpoint (now streaming) ---
+
+@app.post("/query")
+async def query(request: QueryRequest):
+    return StreamingResponse(
+        stream_response(request),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # disable nginx buffering if deployed behind nginx
+        },
+    )
 
 
 @app.get("/health")

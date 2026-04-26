@@ -154,6 +154,7 @@ export default function Home() {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [streamingText, setStreamingText] = useState(""); // accumulates tokens during streaming
   const [selectedImage, setSelectedImage] = useState<{
     base64: string;
     type: string;
@@ -164,7 +165,7 @@ export default function Home() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, streamingText]);
 
   function parseArtifact(text: string): {
     content: string;
@@ -236,7 +237,7 @@ export default function Home() {
     if ((!input.trim() && !selectedImage) || loading) return;
 
     const questionText = input.trim() || "Analyze this image in the context of the Vulcan OmniPro 220 welder. Describe what you see and provide relevant advice.";
-    
+
     const userMessage: Message = {
       role: "user",
       content: questionText,
@@ -245,6 +246,7 @@ export default function Home() {
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setLoading(true);
+    setStreamingText("");
 
     // Capture image data before clearing
     const imageData = selectedImage;
@@ -272,8 +274,55 @@ export default function Home() {
 
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
 
-      const data = await res.json();
-      const { content, artifact } = parseArtifact(data.answer);
+      // --- SSE streaming reader ---
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let accumulated = "";
+      let buffer = ""; // handles partial SSE lines across chunks
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Process complete SSE lines from buffer
+        const lines = buffer.split("\n");
+        // Keep the last potentially incomplete line in the buffer
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+
+          const jsonStr = line.slice(6); // remove "data: " prefix
+          if (!jsonStr.trim()) continue;
+
+          try {
+            const event = JSON.parse(jsonStr);
+
+            if (event.type === "token") {
+              accumulated += event.text;
+              // Update streaming text — show text but hide artifact code while streaming
+              // Strip incomplete artifact tags during streaming for clean display
+              let displayText = accumulated;
+              // If we're mid-artifact, only show text before the artifact tag
+              const artifactStart = displayText.indexOf("<artifact type=\"react\">");
+              if (artifactStart !== -1) {
+                displayText = displayText.substring(0, artifactStart).trim();
+              }
+              setStreamingText(displayText);
+            }
+            // metadata and done events: we don't need to display them
+          } catch {
+            // Skip malformed JSON lines (shouldn't happen, but be safe)
+          }
+        }
+      }
+
+      // --- Stream complete: parse final accumulated text ---
+      const { content, artifact } = parseArtifact(accumulated);
 
       const assistantMessage: Message = {
         role: "assistant",
@@ -282,6 +331,7 @@ export default function Home() {
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
+      setStreamingText(""); // clear streaming display
     } catch (err) {
       const errorMsg =
         err instanceof Error ? err.message : "Unknown error";
@@ -292,6 +342,7 @@ export default function Home() {
           content: `**Connection error:** ${errorMsg}\n\nMake sure the Python backend is running on ${API_URL}`,
         },
       ]);
+      setStreamingText("");
     } finally {
       setLoading(false);
     }
@@ -321,7 +372,27 @@ export default function Home() {
         {messages.map((msg, i) => (
           <MessageBubble key={i} message={msg} />
         ))}
-        {loading && (
+
+        {/* Streaming message — shows tokens as they arrive */}
+        {streamingText && (
+          <div className="flex justify-start mb-4">
+            <div className="max-w-3xl w-full mr-4">
+              <div className="text-xs text-orange-400 mb-1 font-mono tracking-wide">
+                VULCAN AI
+              </div>
+              <div className="rounded-xl px-4 py-3 bg-gray-800 text-gray-100 border border-gray-700">
+                <div className="prose prose-invert prose-sm max-w-none prose-headings:text-orange-300 prose-headings:font-semibold prose-strong:text-orange-200 prose-li:text-gray-200 prose-p:text-gray-200 prose-p:leading-relaxed prose-a:text-orange-400">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {streamingText}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Loading dots — only show before first token arrives */}
+        {loading && !streamingText && (
           <div className="flex justify-start mb-4">
             <div className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3">
               <div className="flex gap-1.5 items-center">
@@ -338,7 +409,7 @@ export default function Home() {
                   style={{ animationDelay: "300ms" }}
                 ></div>
                 <span className="text-xs text-gray-500 ml-2">
-                  {selectedImage ? "Analyzing image..." : "Thinking..."}
+                  Thinking...
                 </span>
               </div>
             </div>
