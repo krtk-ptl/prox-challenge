@@ -6,6 +6,12 @@ Built for the [Prox Founding Engineer Challenge](https://useprox.com/join/challe
 
 ![Demo](https://img.shields.io/badge/status-functional-green) ![Claude](https://img.shields.io/badge/AI-Claude%20API-orange) ![RAG](https://img.shields.io/badge/RAG-ChromaDB-blue)
 
+## Live Demo
+
+**[Try it live →](https://prox-vulcan-ai.vercel.app)**
+
+> Note: Backend runs on Render free tier — first load may take ~30 seconds if the server is cold.
+
 ## Video Walkthrough
 
 > *Link will be added here*
