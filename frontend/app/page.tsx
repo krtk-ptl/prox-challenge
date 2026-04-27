@@ -107,9 +107,12 @@ function ArtifactRenderer({ code }: { code: string }) {
       .replace(/export default function/, "function")
       .replace(/export default/, "");
     if (funcName && funcName !== "Component") {
-      processed += `\nconst Component = ${funcName};`;
+      processed += `\nvar Component = ${funcName};`;
     }
-    return processed;
+    // Prepend React hooks destructuring + render call
+    const prefix = `var useState = React.useState, useEffect = React.useEffect, useRef = React.useRef, useMemo = React.useMemo, useCallback = React.useCallback;\n`;
+    const suffix = `\nReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Component));`;
+    return prefix + processed + suffix;
   })();
 
   const bodyStyle = [
@@ -145,27 +148,58 @@ function ArtifactRenderer({ code }: { code: string }) {
 <html>
 <head>
 <meta charset="UTF-8">
-<script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin><\/script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin><\/script>
-<script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"><\/script>
-<script src="https://cdn.tailwindcss.com"><\/script>
-<style>${bodyStyle}<\/style>
+<style>${bodyStyle}
+#loading{display:flex;align-items:center;justify-content:center;height:100px;color:#a3a3a3;font-family:system-ui;font-size:13px}
+#loading .dot{width:6px;height:6px;background:#f97316;border-radius:50%;margin:0 3px;animation:bounce 1s infinite}
+#loading .dot:nth-child(2){animation-delay:0.15s}
+#loading .dot:nth-child(3){animation-delay:0.3s}
+@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-8px)}}
+</style>
 </head>
 <body>
-<div id="root"></div>
-<script type="text/babel" data-presets="react">
-const { useState, useEffect, useRef, useMemo, useCallback } = React;
-try {
-${processedCode}
-ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Component));
-const ro = new ResizeObserver(() => {
-  const h = document.getElementById('root')?.scrollHeight;
-  if (h) window.parent.postMessage({ type: 'resize', height: h }, '*');
-});
-ro.observe(document.getElementById('root'));
-} catch(e) {
-document.getElementById('root').innerHTML = '<div style="color:#dc2626;padding:20px;font-family:monospace"><b>Artifact render error:</b><br/>' + e.message + '</div>';
+<div id="root"><div id="loading"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>
+<script>
+// Sequential script loader — ensures each CDN dependency loads before the next
+var scripts = [
+  'https://unpkg.com/react@18/umd/react.production.min.js',
+  'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js',
+  'https://unpkg.com/@babel/standalone@7.23.5/babel.min.js'
+];
+var loaded = 0;
+function loadNext() {
+  if (loaded >= scripts.length) { runApp(); return; }
+  var s = document.createElement('script');
+  s.src = scripts[loaded];
+  s.onload = function() { loaded++; loadNext(); };
+  s.onerror = function() {
+    // Retry once on failure
+    var r = document.createElement('script');
+    r.src = scripts[loaded];
+    r.onload = function() { loaded++; loadNext(); };
+    r.onerror = function() {
+      document.getElementById('root').innerHTML = '<div style="color:#f97316;padding:20px;font-size:13px">Failed to load dependencies. Please retry.</div>';
+    };
+    document.head.appendChild(r);
+  };
+  document.head.appendChild(s);
 }
+function runApp() {
+  try {
+    var code = ${JSON.stringify(processedCode)};
+    var transformed = Babel.transform(code, { presets: ['react'] }).code;
+    var fn = new Function('React', 'ReactDOM', transformed);
+    fn(React, ReactDOM);
+    // Auto-resize
+    var ro = new ResizeObserver(function() {
+      var h = document.getElementById('root') ? document.getElementById('root').scrollHeight : 0;
+      if (h) window.parent.postMessage({ type: 'resize', height: h }, '*');
+    });
+    ro.observe(document.getElementById('root'));
+  } catch(e) {
+    document.getElementById('root').innerHTML = '<div style="color:#dc2626;padding:20px;font-family:monospace;font-size:13px"><b>Render error:</b><br/>' + e.message + '</div>';
+  }
+}
+loadNext();
 <\/script>
 </body>
 </html>`;
