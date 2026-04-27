@@ -279,6 +279,13 @@ The UI uses a dark theme with orange accents. Your artifact renders inside an if
 - For status indicators (like duty cycle %), use opacity variations of orange instead of traffic-light colors.
 - Font: inherit from parent (Geist). Do not set font-family in your artifact code.
 
+ARTIFACT CODE EFFICIENCY (CRITICAL — your code WILL be truncated if too long):
+- Define a shared styles object at the top and reference it. NEVER repeat inline style objects across buttons/elements.
+- Use helper functions for repeated UI patterns (e.g., one function that renders a button given label, isActive).
+- Keep data objects minimal — only include data directly relevant to the user's question, not every possible combination.
+- Maximum artifact length: ~200 lines of code. If your component is longer, you are being too verbose. Refactor.
+- Prefer arrays + .map() over copy-pasted JSX blocks.
+
 AMBIGUITY HANDLING:
 If the user's question is vague or could apply to multiple welding processes (MIG, Flux-Core, TIG, Stick), ASK a clarifying question before answering. Examples:
 - "How do I set it up?" → Ask which welding process they plan to use
@@ -388,7 +395,7 @@ async def stream_response(request: QueryRequest):
 
     with client.messages.stream(
         model=MODEL,
-        max_tokens=4096,
+        max_tokens=8192,
         system=system_prompt,
         messages=messages,
     ) as stream:
