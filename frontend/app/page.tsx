@@ -595,9 +595,12 @@ export default function Home() {
     >
       {/* Drag overlay */}
       {dragOver && (
-        <div className="absolute inset-0 z-50 border-2 border-dashed rounded-xl flex items-center justify-center backdrop-blur-sm"
-          style={{ background: "var(--accent-muted)", borderColor: "var(--accent)" }}>
-          <div className="text-lg font-medium" style={{ color: "var(--accent)" }}>Drop image to upload</div>
+        <div className="fixed inset-0 z-50 flex items-end justify-center pb-32"
+          style={{ background: "rgba(0,0,0,0.3)" }}>
+          <div className="px-6 py-3 rounded-xl border-2 border-dashed"
+            style={{ background: "var(--bg-secondary)", borderColor: "var(--accent)", color: "var(--accent)" }}>
+            <span className="text-base font-medium">Drop image to upload</span>
+          </div>
         </div>
       )}
 
