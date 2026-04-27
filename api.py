@@ -110,6 +110,12 @@ def hybrid_search(query: str, n_results: int = 5) -> list[dict]:
     # Sort by RRF score descending, take top n_results
     sorted_ids = sorted(rrf_scores.keys(), key=lambda x: rrf_scores[x], reverse=True)[:n_results]
 
+    # --- Filter out weak chunks: drop anything below 50% of the top RRF score ---
+    if sorted_ids:
+        top_score = rrf_scores[sorted_ids[0]]
+        threshold = top_score * 0.50
+        sorted_ids = [doc_id for doc_id in sorted_ids if rrf_scores[doc_id] >= threshold]
+
     # --- Fetch full chunk data for the winning IDs ---
     # Build a lookup from our stored data
     id_to_idx = {doc_id: idx for idx, doc_id in enumerate(bm25_ids)}
@@ -266,6 +272,7 @@ The user is in their garage, just bought this welder, needs clear practical help
 Be direct and practical. Reference specific page numbers from the manual when possible.
 Always answer the text question FIRST with a clear explanation, then show the artifact below.
 Use markdown formatting: **bold** for emphasis, bullet lists for steps.
+Do NOT use em dashes (—) in your responses. Use commas, periods, colons, or parentheses instead. Write in short, clear sentences.
 
 ARTIFACT STYLING (MANDATORY — follow these rules for ALL React artifacts):
 The UI uses a dark theme with orange accents. Your artifact renders inside an iframe with dark background (#141414).
@@ -358,12 +365,47 @@ def build_messages(question: str, context: str, history: list[ChatMessage] | Non
 # --- SSE streaming generator ---
 
 async def stream_response(request: QueryRequest):
-    """Generator that yields SSE events with Claude's streaming tokens."""
-    # Step 1: Classify (non-streaming, fast)
+    """Generator that yields SSE events with Claude's streaming tokens.
+    
+    Emits status events at each pipeline stage for frontend tool-use indicators:
+    1. classify → classifying the question
+    2. retrieve → searching the knowledge base
+    3. generate → streaming Claude's response
+    """
+    # Step 1: Emit classifying status, then classify
+    status_event = json.dumps({"type": "status", "step": "classify", "state": "running"})
+    yield f"data: {status_event}\n\n"
+
     question_type = classify_question(request.question)
 
-    # Step 2: Hybrid RAG retrieval (vector + BM25 + RRF, all local, $0)
-    search_results = hybrid_search(request.question, n_results=5)
+    status_event = json.dumps({"type": "status", "step": "classify", "state": "done", "result": question_type})
+    yield f"data: {status_event}\n\n"
+
+    # Step 2: Emit retrieving status, then retrieve
+    status_event = json.dumps({"type": "status", "step": "retrieve", "state": "running"})
+    yield f"data: {status_event}\n\n"
+
+    # Vary retrieval depth by question type — simple topics need fewer chunks,
+    # troubleshooting/settings need more context to be thorough
+    retrieval_depth = {"polarity": 4, "duty_cycle": 5, "troubleshoot": 7, "settings": 6, "general": 5}
+    n_results = retrieval_depth.get(question_type, 5)
+
+    search_results = hybrid_search(request.question, n_results=n_results)
+
+    # Collect unique sources for the status event
+    sources_seen = set()
+    for r in search_results:
+        src = r["metadata"].get("source", "unknown")
+        sources_seen.add(src)
+
+    status_event = json.dumps({
+        "type": "status",
+        "step": "retrieve",
+        "state": "done",
+        "chunks": len(search_results),
+        "sources": list(sources_seen),
+    })
+    yield f"data: {status_event}\n\n"
 
     context = ""
     for result in search_results:
@@ -381,7 +423,10 @@ async def stream_response(request: QueryRequest):
         image_type=request.image_type,
     )
 
-    # Step 3: Send metadata event (question_type, model) before tokens start
+    # Step 3: Emit generating status + metadata, then stream
+    status_event = json.dumps({"type": "status", "step": "generate", "state": "running"})
+    yield f"data: {status_event}\n\n"
+
     meta_event = json.dumps({
         "type": "metadata",
         "question_type": question_type,
@@ -411,7 +456,10 @@ async def stream_response(request: QueryRequest):
         total_input_tokens = final_message.usage.input_tokens
         total_output_tokens = final_message.usage.output_tokens
 
-    # Step 5: Send done event with token usage
+    # Step 5: Mark generate as done + send done event with token usage
+    status_event = json.dumps({"type": "status", "step": "generate", "state": "done"})
+    yield f"data: {status_event}\n\n"
+
     done_event = json.dumps({
         "type": "done",
         "tokens_used": total_input_tokens + total_output_tokens,
