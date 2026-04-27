@@ -271,7 +271,9 @@ function MessageBubble({ message }: { message: Message }) {
           )}
 
           {isUser ? (
-            <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
+            message.content ? (
+              <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
+            ) : null
           ) : (
             <div className="text-sm leading-relaxed">
               <ReactMarkdown
@@ -369,6 +371,7 @@ export default function Home() {
   const [selectedImage, setSelectedImage] = useState<{ base64: string; type: string; preview: string } | null>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const dragCountRef = useRef(0);
   const [dragOver, setDragOver] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -473,7 +476,8 @@ export default function Home() {
     if ((!messageText && !selectedImage) || loading) return;
 
     const questionText = messageText || "Analyze this image in the context of the Vulcan OmniPro 220 welder. Describe what you see and provide relevant advice.";
-    const userMessage: Message = { role: "user", content: questionText, imagePreview: selectedImage?.preview };
+    const isImageOnly = !messageText && !!selectedImage;
+    const userMessage: Message = { role: "user", content: isImageOnly ? "" : questionText, imagePreview: selectedImage?.preview };
     setMessages((prev) => [...prev, userMessage]);
     setInput(""); setLoading(true); setStreamingText("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
@@ -550,9 +554,10 @@ export default function Home() {
     <div
       className="min-h-screen flex flex-col relative"
       style={{ background: "var(--bg-primary)" }}
-      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-      onDragLeave={() => setDragOver(false)}
-      onDrop={handleDrop}
+      onDragOver={(e) => { e.preventDefault(); }}
+      onDragEnter={(e) => { e.preventDefault(); dragCountRef.current++; setDragOver(true); }}
+      onDragLeave={() => { dragCountRef.current--; if (dragCountRef.current <= 0) { dragCountRef.current = 0; setDragOver(false); } }}
+      onDrop={(e) => { dragCountRef.current = 0; handleDrop(e); }}
     >
       {/* Drag overlay */}
       {dragOver && (
