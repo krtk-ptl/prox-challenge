@@ -289,7 +289,7 @@ function MessageBubble({ message }: { message: Message }) {
         )}
 
         <div
-          className={`relative group rounded-2xl px-4 py-3 ${isUser ? "w-fit max-w-lg ml-auto" : "max-w-[75ch]"}`}
+          className={`relative group rounded-2xl px-4 py-3 ${isUser ? "w-fit max-w-2xl ml-auto" : ""}`}
           style={{
             background: isUser ? "var(--bg-bubble-user)" : "var(--bg-bubble-ai)",
             color: isUser ? "var(--text-on-accent)" : "var(--text-primary)",
@@ -650,6 +650,7 @@ export default function Home() {
 
       {/* ── Messages ── */}
       <div ref={chatContainerRef} className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 relative">
+        <div className="max-w-4xl mx-auto">
         {/* Empty state */}
         {isEmpty && (
           <div className="flex flex-col items-center justify-center h-full min-h-[60vh] text-center px-4">
@@ -719,6 +720,7 @@ export default function Home() {
         )}
 
         <div ref={bottomRef} />
+        </div>
       </div>
 
       {/* Scroll-to-bottom */}
