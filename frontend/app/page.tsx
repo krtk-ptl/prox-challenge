@@ -113,17 +113,22 @@ function ArtifactRenderer({ code }: { code: string }) {
   })();
 
   const bodyStyle = [
-    "body{margin:0;padding:16px;background:#f9fafb;color:#111827;font-family:system-ui,-apple-system,sans-serif}",
-    "select,input,option{color:#111827!important;background:#ffffff!important;border:1px solid #d1d5db;padding:6px 10px;border-radius:6px;font-size:14px}",
+    "@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap');",
+    "body{margin:0;padding:16px;background:#141414;color:#e5e5e5;font-family:'Geist',system-ui,-apple-system,sans-serif}",
+    "select,input,option{color:#e5e5e5!important;background:#262626!important;border:1px solid #404040;padding:6px 10px;border-radius:6px;font-size:14px;font-family:inherit}",
     "select{min-width:140px;cursor:pointer}",
-    "select:focus,input:focus{outline:2px solid #f97316;outline-offset:1px}",
-    "label{font-weight:500;font-size:14px}",
-    "p,h1,h2,h3,h4,h5,span,td,th,li,div{color:#111827}",
-    "table{width:100%;border-collapse:collapse;font-size:14px}",
-    "th{background:#1e40af;color:#ffffff!important;padding:10px 12px;text-align:left;font-weight:600}",
-    "td{padding:10px 12px;border-bottom:1px solid #e5e7eb}",
-    "tr:hover td{background:#f3f4f6}",
-    "button{cursor:pointer;padding:8px 16px;border-radius:6px;font-size:14px;font-weight:500;border:none;transition:all 0.15s}",
+    "select:focus,input:focus{outline:2px solid #f97316;outline-offset:1px;border-color:#f97316}",
+    "label{font-weight:500;font-size:14px;color:#a3a3a3}",
+    "p,h1,h2,h3,h4,h5,span,li,div{color:#e5e5e5}",
+    "h1,h2,h3{color:#fdba74}",
+    "table{width:100%;border-collapse:collapse;font-size:13px}",
+    "th{background:#292929;color:#fdba74!important;padding:10px 12px;text-align:left;font-weight:600;border-bottom:1px solid #404040}",
+    "td{padding:10px 12px;border-bottom:1px solid #262626;color:#d4d4d4}",
+    "tr:hover td{background:#1a1a1a}",
+    "button{cursor:pointer;padding:8px 16px;border-radius:6px;font-size:14px;font-weight:500;border:1px solid #404040;background:#262626;color:#e5e5e5;transition:all 0.15s;font-family:inherit}",
+    "button:hover{border-color:#f97316;color:#fdba74}",
+    "button.active,button[style*='background: rgb(239']{background:#f97316!important;color:#fff!important;border-color:#f97316!important}",
+    ".warning,.important{background:#1a1a0a;border-left:3px solid #f97316;padding:8px 12px;border-radius:4px}",
   ].join("");
 
   useEffect(() => {
@@ -174,15 +179,15 @@ document.getElementById('root').innerHTML = '<div style="color:#dc2626;padding:2
   }
 
   return (
-    <div className="mt-3">
+    <div className="mt-3 max-w-[75ch]">
       <div className="flex items-center gap-2 mb-1.5">
         <div className="w-3 h-3 rounded-sm" style={{ background: "var(--accent)", opacity: 0.8 }} />
         <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>Interactive Tool</span>
       </div>
       <iframe
         srcDoc={html}
-        className="w-full rounded-lg bg-white"
-        style={{ height: `${iframeHeight}px`, transition: "height 0.2s ease", border: "1px solid var(--border-subtle)" }}
+        className="w-full rounded-lg"
+        style={{ height: `${iframeHeight}px`, transition: "height 0.2s ease", border: "1px solid var(--border-subtle)", background: "#141414" }}
         sandbox="allow-scripts"
         onError={() => setHasError(true)}
       />

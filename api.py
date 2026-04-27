@@ -125,6 +125,10 @@ def hybrid_search(query: str, n_results: int = 5) -> list[dict]:
                 "rrf_score": rrf_scores[doc_id],
             })
             
+    print(f"Query: {query}")
+    for r in results:
+        print(f"  RRF={r['rrf_score']:.4f} | {r['metadata']['source']} p{r['metadata']['page']} | {r['text'][:80]}...")
+
     return results
 
 
@@ -179,7 +183,6 @@ ARTIFACT_PROMPTS = {
     "polarity": """
 You MUST generate a React artifact showing a visual polarity diagram.
 The diagram should show the welder unit with two sockets (+ and -) and cables connecting to the correct terminals.
-Use colored SVG elements inside React: red for positive, black/blue for negative.
 Show all 4 processes: MIG, Flux-Core, TIG, Stick with their correct polarity.
 Include a process selector (tabs or dropdown) that updates the diagram.
 
@@ -197,7 +200,7 @@ You MUST generate a React artifact with an interactive duty cycle calculator.
 Include dropdowns for: Process (MIG/TIG/Stick/Flux), Voltage (120V/240V).
 Show a table with amperage, duty cycle %, weld time, and rest time per 10-min cycle.
 Use data exactly from the manual context provided — do NOT invent numbers.
-Color code: green for 100%, yellow for 60%, orange/red for 25-40%.
+For duty cycle percentages, use opacity or shade variations of orange (#f97316) to indicate severity — lighter orange for 100%, darker/deeper for 25-40%. Do NOT use green, red, yellow, or blue.
 
 Format your artifact EXACTLY like this:
 <artifact type="react">
@@ -263,6 +266,18 @@ The user is in their garage, just bought this welder, needs clear practical help
 Be direct and practical. Reference specific page numbers from the manual when possible.
 Always answer the text question FIRST with a clear explanation, then show the artifact below.
 Use markdown formatting: **bold** for emphasis, bullet lists for steps.
+
+ARTIFACT STYLING (MANDATORY — follow these rules for ALL React artifacts):
+The UI uses a dark theme with orange accents. Your artifact renders inside an iframe with dark background (#141414).
+- Background: use #141414, #1a1a1a, #262626 for surfaces. NEVER use white, #f9fafb, or light backgrounds.
+- Text: use #e5e5e5 for body text, #fdba74 for headings/labels, #a3a3a3 for secondary text.
+- Accent color: #f97316 (orange). Use for active tabs, selected states, primary buttons, highlights.
+- Borders: use #404040 or #333333. Never use light gray borders.
+- Buttons: dark background (#262626) with #404040 border. Active/selected buttons get #f97316 background with white text.
+- Tables: dark header (#292929), #fdba74 header text, #262626 alternating rows, #404040 borders.
+- DO NOT use blue, green, red, yellow, or any bright multi-colored elements. Use only orange (#f97316), its shades (#fdba74, #ea580c), and neutral grays.
+- For status indicators (like duty cycle %), use opacity variations of orange instead of traffic-light colors.
+- Font: inherit from parent (Geist). Do not set font-family in your artifact code.
 
 AMBIGUITY HANDLING:
 If the user's question is vague or could apply to multiple welding processes (MIG, Flux-Core, TIG, Stick), ASK a clarifying question before answering. Examples:
