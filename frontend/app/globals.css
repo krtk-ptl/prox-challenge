@@ -2,9 +2,9 @@
 
 /* ── Light theme (default) ── */
 :root {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f5f5f5;
-  --bg-tertiary: #e5e5e5;
+  --bg-primary: #faf8f5;
+  --bg-secondary: #f0ede8;
+  --bg-tertiary: #e8e3dc;
   --bg-bubble-ai: #f5f5f5;
   --bg-bubble-user: #f97316;
   --bg-input: #f5f5f5;
