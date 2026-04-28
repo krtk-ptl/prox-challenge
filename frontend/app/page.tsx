@@ -31,8 +31,8 @@ interface PipelineStep {
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 const STARTER_PROMPTS = [
-  { icon: "⚡", label: "MIG Setup", text: "How do I set up for MIG welding on 3mm mild steel?" },
   { icon: "🔧", label: "Troubleshoot", text: "I'm getting porosity in my welds — what could be wrong?" },
+  { icon: "⚡", label: "MIG Setup", text: "How do I set up for MIG welding on 3mm mild steel?" },
   { icon: "🔌", label: "Polarity", text: "Which polarity do I use for each welding process?" },
   { icon: "⏱️", label: "Duty Cycle", text: "What's the duty cycle for MIG at 200A on 240V?" },
 ];

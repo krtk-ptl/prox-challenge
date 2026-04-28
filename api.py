@@ -187,7 +187,9 @@ def classify_question(question: str) -> str:
 
 ARTIFACT_PROMPTS = {
     "polarity": """
-You MUST generate a React artifact showing a visual polarity diagram.
+MANDATORY: You MUST generate a React artifact EVERY TIME this question type is asked, regardless of conversation history or prior responses. Never skip the artifact for polarity questions.
+
+Generate a React artifact showing a visual polarity diagram.
 The diagram should show the welder unit with two sockets (+ and -) and cables connecting to the correct terminals.
 Show all 4 processes: MIG, Flux-Core, TIG, Stick with their correct polarity.
 Include a process selector (tabs or dropdown) that updates the diagram.
@@ -202,7 +204,9 @@ function PolarityDiagram() {
 </artifact>
 """,
     "duty_cycle": """
-You MUST generate a React artifact with an interactive duty cycle calculator.
+MANDATORY: You MUST generate a React artifact EVERY TIME this question type is asked, regardless of conversation history or prior responses. Never skip the artifact for duty cycle questions.
+
+Generate a React artifact with an interactive duty cycle calculator.
 Include dropdowns for: Process (MIG/TIG/Stick/Flux), Voltage (120V/240V).
 Show a table with amperage, duty cycle %, weld time, and rest time per 10-min cycle.
 Use data exactly from the manual context provided — do NOT invent numbers.
@@ -219,13 +223,29 @@ function DutyCycleCalculator() {
 </artifact>
 """,
     "troubleshoot": """
-You MUST generate a React artifact with an interactive troubleshooting flowchart.
-Start with the reported symptom, then show Yes/No decision nodes leading to specific fixes.
-Use the manual's troubleshooting section data.
-Style as a step-by-step clickable flow, not a static list.
-IMPORTANT: Every path in the flowchart must lead to a concrete resolution or a "Contact Vulcan support" fallback. No dead ends.
+RULE 1 — NON-NEGOTIABLE: Generate a React troubleshooting flowchart artifact in EVERY response to this question type. No exceptions. The artifact must appear even if you also ask a clarifying question. Generate the artifact first, then ask questions in the text if needed.
 
-Format your artifact EXACTLY like this:
+The artifact is an interactive flowchart starting with the symptom the user described, branching through Yes/No questions to specific fixes from the manual (Pages 37-40). Every branch must end at a concrete fix or "Contact Vulcan support at 1-800-444-3353". No dead ends.
+
+TEXT RESPONSE RULE — NON-NEGOTIABLE:
+The text response and the artifact must NOT duplicate informative information which is meant for user to see.
+
+- The artifact handles all detailed logic, interaction, decision-making, and visuals.
+- The text must be minimal (4-5 short sentences max).
+- The text should ONLY:
+  1. Briefly acknowledge or restate the user’s problem, present symptoms and
+  2. Direct the user to use the interactive artifact below.
+
+STRICTLY AVOID in text:
+- Lists, decision trees, or explanations already present in the artifact
+- Repeating options, processes, or data shown in the artifact
+
+If the artifact already contains the answer, the text should not re-explain it because it add unnecessary bulk to answer..
+
+
+Do NOT ask for material thickness — defect causes do not depend on thickness.
+
+Format:
 <artifact type="react">
 function TroubleshootingFlow() {
   const [step, setStep] = React.useState(0);
@@ -236,21 +256,14 @@ function TroubleshootingFlow() {
 </artifact>
 """,
     "settings": """
-You MUST generate a React artifact — a settings configurator.
-Inputs: Welding Process, Material Type, Material Thickness (gauge or mm).
-Output: Recommended Voltage, Wire Speed, Amperage, Gas type, Tip size.
-Use actual values from the manual's welding parameter charts.
+Do NOT generate a React artifact for settings questions. The OmniPro 220 has a built-in LCD auto-recommendation system that is more accurate than any chart we can show.
 
-Format your artifact EXACTLY like this:
-<artifact type="react">
-function SettingsConfigurator() {
-  const [process, setProcess] = React.useState('MIG');
-  const [material, setMaterial] = React.useState('mild_steel');
-  const [thickness, setThickness] = React.useState('1/8');
-  // your component code
-  return (...);
-}
-</artifact>
+Instead, give a clear text answer that:
+1. Answers the specific question with whatever guidance the manual context provides.
+2. Directs the user to the welder's built-in LCD system (Page 20): press Home, select process, use Left Knob for wire diameter and Right Knob for material thickness — the machine shows its own recommended settings.
+3. Includes any relevant duty cycle limits or safety notes for the process/amperage mentioned.
+
+Generate an artifact if the user explicitly asks for a visual chart or calculator.
 """,
     "general": """
 Answer the question clearly and practically using the manual context.
@@ -273,6 +286,14 @@ Be direct and practical. Reference specific page numbers from the manual when po
 Always answer the text question FIRST with a clear explanation, then show the artifact below.
 Use markdown formatting: **bold** for emphasis, bullet lists for steps.
 Do NOT use em dashes (—) in your responses. Use commas, periods, colons, or parentheses instead. Write in short, clear sentences.
+
+SETTINGS ACCURACY NOTE:
+When giving specific voltage/wire speed numbers, always tell the user to cross-check using the welder's built-in LCD system: press Home, select process, then use the Left Knob (wire diameter) and Right Knob (material thickness) to get the machine's own recommendation. This is more reliable than any chart because it accounts for the exact wire and material combination. (Page 20)
+- MIG (solid core, gas shielded): DCEP. Ground clamp to NEGATIVE (-) socket. Wire feed cable to POSITIVE (+) socket. (Page 14)
+- Flux-Core (gasless, self-shielded): DCEN. Ground clamp to POSITIVE (+) socket. Wire feed cable to NEGATIVE (-) socket. (Page 13)
+- TIG: DCEN. TIG torch to NEGATIVE (-) terminal. Ground clamp to POSITIVE (+) terminal. Gas: 100% Argon, 10-25 SCFH. (Page 30)
+- Stick: DCEP for most electrodes. Check electrode manufacturer specs for exceptions.
+These are verified from the official manual. If retrieved context contradicts these, trust these facts.
 
 ARTIFACT STYLING (MANDATORY — follow these rules for ALL React artifacts):
 The UI uses a dark theme with orange accents. Your artifact renders inside an iframe with dark background (#141414).
@@ -302,6 +323,7 @@ If the user's question is vague or could apply to multiple welding processes (MI
 Do NOT guess when the answer depends on which process, voltage, or material. Ask first.
 When asking for clarification on settings, always explicitly ask about thickness — it is required to give accurate recommendations.
 However, if the conversation history already contains the answer (e.g., they mentioned MIG earlier), use that context and don't ask again.
+EXCEPTION — TROUBLESHOOTING: For troubleshooting questions about defects (porosity, spatter, cracks, undercut, etc.), do NOT ask for material thickness. Defect causes are the same regardless of thickness. Only ask for welding process if genuinely needed and not already mentioned. Go straight to diagnosing the symptom.
 
 CONVERSATION CONTEXT:
 You have access to the recent conversation history. Use it to:
