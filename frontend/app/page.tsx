@@ -1102,7 +1102,7 @@ export default function Home() {
           </button>
         </div>
         <p className="text-[10px] text-center mt-1.5 tracking-wide" style={{ color: "var(--text-faint)" }}>
-          Powered by Claude + Vulcan OmniPro 220 Manual
+          Powered by Claude + Vulcan OmniPro 220 Manual | Prox
         </p>
       </div>
 
