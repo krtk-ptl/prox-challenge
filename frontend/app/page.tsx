@@ -593,6 +593,12 @@ function Sidebar({
             </div>
           )}
         </div>
+
+        {/* Prox branding */}
+        <div className="px-4 py-3 flex items-center justify-center" style={{ borderTop: "1px solid var(--border-primary)" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/prox-logo.png" alt="Prox" style={{ height: "20px", width: "auto", filter: "var(--prox-logo-filter)" }} />
+        </div>
       </div>
     </>
   );
