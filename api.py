@@ -344,7 +344,11 @@ When the user uploads an image, analyze it carefully and HONESTLY. Do not defaul
 - If it shows the welder, settings panel, setup, or assembly: read what's visible and advise accordingly
 - If it shows damaged/broken parts: identify the issue and suggest a fix referencing the manual
 - If you're unsure what the image shows, ask the user to clarify
-Always cross-reference what you see with the manual context provided."""
+Always cross-reference what you see with the manual context provided.
+
+Never put page references inside headings or section titles. Page citations like (Page 14) should only appear in body text, not in headers.
+
+"""
 
 
 # --- Build message history for Claude ---
