@@ -361,6 +361,59 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+// ─── Page Image Modal ───
+function PageImageModal({ url, onClose }: { url: string; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="relative max-w-3xl max-h-[90vh] m-4" onClick={(e) => e.stopPropagation()}>
+        <button
+          onClick={onClose}
+          className="absolute -top-3 -right-3 z-10 w-8 h-8 rounded-full flex items-center justify-center"
+          style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-secondary)", color: "var(--text-primary)" }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+        </button>
+        <img src={url} alt="Manual page" className="max-h-[85vh] rounded-lg shadow-2xl" style={{ border: "1px solid var(--border-secondary)" }} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Page Citation Processor ───
+// Converts "(Page X)" and "(Page X, Y)" text into clickable badge buttons.
+// Uses window.__showPageImage bridge to open the modal from Home component.
+function processPageCitations(child: React.ReactNode): React.ReactNode {
+  if (typeof child !== "string") return child;
+  // Match (Page 14), (Page 19, 23), (Page 7, 12, 42) etc.
+  const parts = child.split(/(\(Page [\d,\s]+\))/g);
+  if (parts.length === 1) return child;
+  return parts.map((part, i) => {
+    const match = part.match(/\(Page ([\d,\s]+)\)/);
+    if (match) {
+      const pages = match[1].split(",").map((p) => p.trim()).filter(Boolean);
+      return (
+        <span key={i} className="inline-flex gap-1 mx-0.5">
+          {pages.map((pageNum) => (
+            <button
+              key={pageNum}
+              onClick={() => (window as any).__showPageImage?.(`${API_URL}/static/pages/owner-manual_p${pageNum}.png`)}
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[12px] font-medium cursor-pointer transition-colors"
+              style={{ background: "var(--accent-muted)", color: "var(--accent-text)", border: "1px solid rgba(249,115,22,0.2)" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(249,115,22,0.25)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "var(--accent-muted)"; }}
+              title={`View manual page ${pageNum}`}
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+              Page {pageNum}
+            </button>
+          ))}
+        </span>
+      );
+    }
+    return part;
+  });
+}
+
 // ─── Message Bubble ───
 function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === "user";
@@ -435,12 +488,18 @@ function MessageBubble({ message }: { message: Message }) {
                       <code className="px-1.5 py-0.5 rounded text-[13px] font-mono" style={{ background: "var(--code-bg)", color: "var(--code-text)" }} {...props}>{children}</code>
                     );
                   },
-                  p: ({ children }) => <p className="mb-3 leading-relaxed last:mb-0" style={{ color: "var(--text-secondary)" }}>{children}</p>,
+                  p: ({ children }) => {
+                    const processed = Array.isArray(children) ? children.map(processPageCitations) : processPageCitations(children);
+                    return <p className="mb-3 leading-relaxed last:mb-0" style={{ color: "var(--text-secondary)" }}>{processed}</p>;
+                  },
                   strong: ({ children }) => <strong className="font-semibold" style={{ color: "var(--accent-text)" }}>{children}</strong>,
                   em: ({ children }) => <em style={{ color: "var(--text-secondary)" }}>{children}</em>,
                   ul: ({ children }) => <ul className="mb-3 ml-4 space-y-1.5 list-disc" style={{ markerColor: "var(--accent)" } as React.CSSProperties}>{children}</ul>,
                   ol: ({ children }) => <ol className="mb-3 ml-4 space-y-1.5 list-decimal" style={{ markerColor: "var(--accent-text)" } as React.CSSProperties}>{children}</ol>,
-                  li: ({ children }) => <li className="pl-1" style={{ color: "var(--text-secondary)" }}>{children}</li>,
+                  li: ({ children }) => {
+                    const processed = Array.isArray(children) ? children.map(processPageCitations) : processPageCitations(children);
+                    return <li className="pl-1" style={{ color: "var(--text-secondary)" }}>{processed}</li>;
+                  },
                   h1: ({ children }) => <h1 className="text-lg font-semibold mb-2 mt-4 first:mt-0" style={{ color: "var(--accent-text)" }}>{children}</h1>,
                   h2: ({ children }) => <h2 className="text-base font-semibold mb-2 mt-3 first:mt-0" style={{ color: "var(--accent-text)" }}>{children}</h2>,
                   h3: ({ children }) => <h3 className="text-sm font-semibold mb-1.5 mt-3 first:mt-0" style={{ color: "var(--accent-text)" }}>{children}</h3>,
@@ -614,6 +673,7 @@ export default function Home() {
   const [selectedImage, setSelectedImage] = useState<{ base64: string; type: string; preview: string } | null>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [pageImageUrl, setPageImageUrl] = useState<string | null>(null);
   const dragCountRef = useRef(0);
   const [dragOver, setDragOver] = useState(false);
 
@@ -698,6 +758,12 @@ export default function Home() {
     const t = setTimeout(() => setToast(null), 5000);
     return () => clearTimeout(t);
   }, [toast]);
+
+  // Expose page image opener for citation buttons
+  useEffect(() => {
+    (window as any).__showPageImage = (url: string) => setPageImageUrl(url);
+    return () => { delete (window as any).__showPageImage; };
+  }, []);
 
   function parseArtifact(text: string) {
     const match = text.match(/<artifact type="react">([\s\S]*?)<\/artifact>/);
@@ -1105,6 +1171,8 @@ export default function Home() {
           Powered by Claude + Vulcan OmniPro 220 Manual | Prox
         </p>
       </div>
+
+      {pageImageUrl && <PageImageModal url={pageImageUrl} onClose={() => setPageImageUrl(null)} />}
 
       <style jsx global>{`
         @keyframes slideDown {

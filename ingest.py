@@ -131,7 +131,8 @@ def ingest_pdfs():
     except Exception:
         pass
 
-    collection = chroma.get_or_create_collection(name="vulcan_manual")
+    from embeddings import bge_embed_fn
+    collection = chroma.get_or_create_collection(name="vulcan_manual", embedding_function=bge_embed_fn)
 
     all_chunks = []
     for pdf_path in pdf_files:
@@ -149,7 +150,7 @@ def ingest_pdfs():
         return
 
     print(f"\nTotal chunks: {len(all_chunks)}")
-    print("Storing in ChromaDB with default embeddings...")
+    print("Storing in ChromaDB with BGE-small-en-v1.5 embeddings...")
 
     collection.add(
         ids=[f"chunk_{i}" for i in range(len(all_chunks))],

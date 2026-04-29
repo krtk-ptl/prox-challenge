@@ -29,6 +29,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi.staticfiles import StaticFiles
+
+if os.path.exists("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+
 # Model from env — use haiku for dev, sonnet for production
 MODEL = os.getenv("CLAUDE_MODEL", "claude-haiku-4-5")
 # Classifier always uses Haiku regardless of MODEL — cheap, fast, no need for Sonnet
@@ -36,7 +41,8 @@ CLASSIFIER_MODEL = "claude-haiku-4-5"
 
 client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 chroma = chromadb.PersistentClient(path="./chroma_db")
-collection = chroma.get_or_create_collection(name="vulcan_manual")
+from embeddings import bge_embed_fn
+collection = chroma.get_or_create_collection(name="vulcan_manual", embedding_function=bge_embed_fn)
 
 
 # --- BM25 index (built once at startup from ChromaDB contents) ---
