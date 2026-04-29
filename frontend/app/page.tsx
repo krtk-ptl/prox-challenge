@@ -396,8 +396,8 @@ function processPageCitations(child: React.ReactNode): React.ReactNode {
           {pages.map((pageNum) => (
             <button
               key={pageNum}
-              onClick={() => (window as any).__showPageImage?.(`${API_URL}/static/pages/owner-manual_p${pageNum}.png`)}
-              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[12px] font-medium cursor-pointer transition-colors"
+              onClick={() => (window as any).__showPageImage?.(`/pages/owner-manual_p${pageNum}.png`)}
+              className="inline-flex items-center gap-0.5 px-1 py-0 rounded text-[10px] font-medium cursor-pointer transition-colors"
               style={{ background: "var(--accent-muted)", color: "var(--accent-text)", border: "1px solid rgba(249,115,22,0.2)" }}
               onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(249,115,22,0.25)"; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = "var(--accent-muted)"; }}
