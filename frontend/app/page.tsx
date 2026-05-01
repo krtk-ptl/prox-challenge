@@ -762,7 +762,13 @@ export default function Home() {
   // Expose page image opener for citation buttons
   useEffect(() => {
     (window as any).__showPageImage = (url: string) => setPageImageUrl(url);
-    return () => { delete (window as any).__showPageImage; };
+    const pageHandler = (e: MessageEvent) => {
+      if (e.data?.type === "openPage" && typeof e.data.page === "number") {
+        (window as any).__showPageImage?.(`/pages/owner-manual_p${e.data.page}.png`);
+      }
+    };
+    window.addEventListener("message", pageHandler);
+    return () => { delete (window as any).__showPageImage; window.removeEventListener("message", pageHandler); };
   }, []);
 
   function parseArtifact(text: string) {
