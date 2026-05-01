@@ -68,6 +68,10 @@ def build_bm25_index():
 
 bm25_index, bm25_documents, bm25_metadatas, bm25_ids = build_bm25_index()
 
+# Warm up embedding model so first query isn't slow
+bge_embed_fn._load_model()
+print("BGE embedding model loaded")
+
 
 def hybrid_search(query: str, n_results: int = 5) -> list[dict]:
     """Run both ChromaDB vector search and BM25 keyword search, merge with RRF.
