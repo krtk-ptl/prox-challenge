@@ -204,7 +204,7 @@ function stepDoneLabel(s: PipelineStep): string {
 // ─── Artifact Renderer ───
 function ArtifactRenderer({ code }: { code: string }) {
   const [hasError, setHasError] = useState(false);
-  const [iframeHeight, setIframeHeight] = useState(360);
+  const [iframeHeight, setIframeHeight] = useState(200);
 
   const processedCode = (() => {
     const match = code.match(/function\s+(\w+)\s*\(/);
@@ -1089,11 +1089,11 @@ export default function Home() {
                   </div>
                 </div>
               ) : (
-                <div className="rounded-2xl px-4 py-3 inline-block" style={{ background: "var(--bg-bubble-ai)", border: "1px solid var(--border-subtle)" }}>
-                  <div className="flex gap-1.5 items-center">
-                    <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "var(--accent)", animationDelay: "0ms" }} />
-                    <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "var(--accent)", animationDelay: "150ms" }} />
-                    <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "var(--accent)", animationDelay: "300ms" }} />
+                <div className="rounded-2xl px-3 py-2 inline-block" style={{ background: "var(--bg-bubble-ai)", border: "1px solid var(--border-subtle)" }}>
+                  <div className="flex gap-1 items-center">
+                    <div className="w-1 h-1 rounded-full animate-bounce" style={{ background: "var(--accent)", animationDelay: "0ms" }} />
+                    <div className="w-1 h-1 rounded-full animate-bounce" style={{ background: "var(--accent)", animationDelay: "150ms" }} />
+                    <div className="w-1 h-1 rounded-full animate-bounce" style={{ background: "var(--accent)", animationDelay: "300ms" }} />
                   </div>
                 </div>
               )}
