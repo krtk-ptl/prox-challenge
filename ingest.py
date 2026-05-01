@@ -131,8 +131,7 @@ def ingest_pdfs():
     except Exception:
         pass
 
-    from embeddings import bge_embed_fn
-    collection = chroma.get_or_create_collection(name="vulcan_manual", embedding_function=bge_embed_fn)
+    collection = chroma.get_or_create_collection(name="vulcan_manual")
 
     all_chunks = []
     for pdf_path in pdf_files:

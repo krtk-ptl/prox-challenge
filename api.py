@@ -41,8 +41,7 @@ CLASSIFIER_MODEL = "claude-haiku-4-5"
 
 client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 chroma = chromadb.PersistentClient(path="./chroma_db")
-from embeddings import bge_embed_fn
-collection = chroma.get_or_create_collection(name="vulcan_manual", embedding_function=bge_embed_fn)
+collection = chroma.get_or_create_collection(name="vulcan_manual")
 
 
 # --- BM25 index (built once at startup from ChromaDB contents) ---
