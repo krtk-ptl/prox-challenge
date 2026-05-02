@@ -37,6 +37,12 @@ const STARTER_PROMPTS = [
   { icon: "⏱️", label: "Duty Cycle", text: "What's the duty cycle for MIG at 200A on 240V?" },
 ];
 
+const MODEL_OPTIONS = [
+  { value: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
+  { value: "claude-haiku-4-5", label: "Claude Haiku 4.5" },
+  { value: "claude-opus-4-6", label: "Claude Opus 4.6" },
+];
+
 // ─── Document Library Data (static — matches the 3 ingested PDFs) ───
 
 const KNOWLEDGE_BASE = {
@@ -53,6 +59,8 @@ const KNOWLEDGE_BASE = {
 // ─── localStorage helpers ───
 
 const STORAGE_KEY = "vulcan-conversations";
+const API_KEY_STORAGE = "vulcan-api-key";
+const MODEL_STORAGE = "vulcan-model";
 
 function loadConversations(): Conversation[] {
   try {
@@ -146,6 +154,152 @@ function VIcon({ size = "sm" }: { size?: "sm" | "md" | "lg" }) {
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/logo.png" alt="V" className="w-full h-full object-cover" style={{ display: "block" }} />
+    </div>
+  );
+}
+
+// ─── API Key Modal ───
+
+function ApiKeyModal({
+  open,
+  onSave,
+  initialKey,
+  initialModel,
+}: {
+  open: boolean;
+  onSave: (key: string, model: string) => void;
+  initialKey: string;
+  initialModel: string;
+}) {
+  const [key, setKey] = useState(initialKey);
+  const [model, setModel] = useState(initialModel);
+  const [showKey, setShowKey] = useState(false);
+  const [error, setError] = useState("");
+
+  // Sync when modal re-opens with new initial values
+  useEffect(() => {
+    if (open) {
+      setKey(initialKey);
+      setModel(initialModel);
+      setError("");
+      setShowKey(false);
+    }
+  }, [open, initialKey, initialModel]);
+
+  if (!open) return null;
+
+  function handleSave() {
+    const trimmed = key.trim();
+    if (!trimmed) {
+      setError("API key is required");
+      return;
+    }
+    if (!trimmed.startsWith("sk-ant-")) {
+      setError("Invalid key format. Anthropic keys start with sk-ant-");
+      return;
+    }
+    setError("");
+    onSave(trimmed, model);
+  }
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center" style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}>
+      <div
+        className="w-full max-w-md mx-4 rounded-2xl p-6"
+        style={{ background: "var(--bg-primary)", border: "1px solid var(--border-secondary)" }}
+      >
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-5">
+          <VIcon size="md" />
+          <div>
+            <h2 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>Connect to Claude</h2>
+            <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>Enter your Anthropic API key to start</p>
+          </div>
+        </div>
+
+        {/* API Key Input */}
+        <div className="mb-4">
+          <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>
+            Anthropic API Key
+          </label>
+          <div className="relative">
+            <input
+              type={showKey ? "text" : "password"}
+              value={key}
+              onChange={(e) => { setKey(e.target.value); setError(""); }}
+              placeholder="sk-ant-api03-..."
+              className="w-full px-3 py-2.5 pr-10 rounded-xl text-sm focus:outline-none transition-colors"
+              style={{
+                background: "var(--bg-input)",
+                border: error ? "1px solid #ef4444" : "1px solid var(--border-subtle)",
+                color: "var(--text-primary)",
+              }}
+              onFocus={(e) => { if (!error) e.currentTarget.style.borderColor = "var(--accent)"; }}
+              onBlur={(e) => { if (!error) e.currentTarget.style.borderColor = "var(--border-subtle)"; }}
+              onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
+              autoFocus
+            />
+            <button
+              onClick={() => setShowKey(!showKey)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded"
+              style={{ color: "var(--text-faint)" }}
+              title={showKey ? "Hide key" : "Show key"}
+              type="button"
+            >
+              {showKey ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+              )}
+            </button>
+          </div>
+          {error && <p className="text-xs mt-1" style={{ color: "#ef4444" }}>{error}</p>}
+          <p className="text-[10px] mt-1.5" style={{ color: "var(--text-faint)" }}>
+            Your key is stored in your browser only. Never sent to our servers.
+            Get one at{" "}
+            <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "var(--accent)" }}>
+              console.anthropic.com
+            </a>
+          </p>
+        </div>
+
+        {/* Model Selector */}
+        <div className="mb-6">
+          <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>
+            Model
+          </label>
+          <select
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            className="w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none transition-colors appearance-none cursor-pointer"
+            style={{
+              background: "var(--bg-input)",
+              border: "1px solid var(--border-subtle)",
+              color: "var(--text-primary)",
+            }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; }}
+          >
+            {MODEL_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          <p className="text-[10px] mt-1.5" style={{ color: "var(--text-faint)" }}>
+            Sonnet 4 recommended. Opus is more capable but slower and costlier.
+          </p>
+        </div>
+
+        {/* Save Button */}
+        <button
+          onClick={handleSave}
+          className="w-full py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer"
+          style={{ background: "var(--accent)", color: "var(--text-on-accent)" }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "var(--accent-hover)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "var(--accent)"; }}
+        >
+          Start Chatting
+        </button>
+      </div>
     </div>
   );
 }
@@ -315,16 +469,13 @@ loadNext();
   }
 
   return (
-    <div className="mt-3 max-w-[75ch]">
-      <div className="flex items-center gap-2 mb-1.5">
-        <div className="w-3 h-3 rounded-sm" style={{ background: "var(--accent)", opacity: 0.8 }} />
-        <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>Interactive Tool</span>
-      </div>
+    <div className="mt-2 rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-subtle)" }}>
       <iframe
         srcDoc={html}
-        className="w-full rounded-lg"
-        style={{ height: `${iframeHeight}px`, transition: "height 0.2s ease", border: "1px solid var(--border-subtle)", background: "#141414" }}
         sandbox="allow-scripts"
+        title="Interactive artifact"
+        className="w-full border-0"
+        style={{ height: iframeHeight, background: "#141414" }}
         onError={() => setHasError(true)}
       />
     </div>
@@ -335,18 +486,18 @@ loadNext();
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
 
-  const handleCopy = async () => {
-    try { await navigator.clipboard.writeText(text); } catch {
-      const ta = document.createElement("textarea");
-      ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta);
-    }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* ignore */ }
+  }
 
   return (
-    <button onClick={handleCopy}
-      className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute top-2 right-2 p-1.5 rounded-md"
+    <button
+      onClick={handleCopy}
+      className="absolute top-2 right-2 p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-all"
       style={{ background: "var(--copy-btn-bg)", color: "var(--copy-btn-text)" }}
       onMouseEnter={(e) => { e.currentTarget.style.background = "var(--copy-btn-hover)"; e.currentTarget.style.color = "var(--copy-btn-hover-text)"; }}
       onMouseLeave={(e) => { e.currentTarget.style.background = "var(--copy-btn-bg)"; e.currentTarget.style.color = "var(--copy-btn-text)"; }}
@@ -685,10 +836,38 @@ export default function Home() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConvoId, setActiveConvoId] = useState<string | null>(null);
 
+  // API Key + Model (Feature: BYOK)
+  const [apiKey, setApiKey] = useState<string>("");
+  const [selectedModel, setSelectedModel] = useState<string>(MODEL_OPTIONS[0].value);
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [apiKeyReady, setApiKeyReady] = useState(false);
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Load API key + model from localStorage on mount
+  useEffect(() => {
+    const storedKey = localStorage.getItem(API_KEY_STORAGE) || "";
+    const storedModel = localStorage.getItem(MODEL_STORAGE) || MODEL_OPTIONS[0].value;
+    setApiKey(storedKey);
+    setSelectedModel(storedModel);
+    if (storedKey) {
+      setApiKeyReady(true);
+    } else {
+      setShowApiKeyModal(true);
+    }
+  }, []);
+
+  function handleApiKeySave(key: string, model: string) {
+    setApiKey(key);
+    setSelectedModel(model);
+    localStorage.setItem(API_KEY_STORAGE, key);
+    localStorage.setItem(MODEL_STORAGE, model);
+    setShowApiKeyModal(false);
+    setApiKeyReady(true);
+  }
 
   // Load conversations from localStorage on mount
   useEffect(() => {
@@ -876,14 +1055,19 @@ export default function Home() {
       const body: Record<string, unknown> = { question: questionText, history };
       if (imageData) { body.image = imageData.base64; body.image_type = imageData.type; }
 
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (apiKey) headers["X-API-Key"] = apiKey;
+      if (selectedModel) headers["X-Model"] = selectedModel;
+
       const res = await fetch(`${API_URL}/query`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(body),
       });
 
       if (!res.ok) {
-        if (res.status === 429) throw new Error("Rate limited — the AI service is busy. Please wait a moment and try again.");
+        if (res.status === 429) throw new Error("Rate limited. Please wait a moment and try again.");
+        if (res.status === 401) throw new Error("Invalid API key. Please check your key in settings.");
         throw new Error(`Server error: ${res.status}`);
       }
 
@@ -904,37 +1088,43 @@ export default function Home() {
           if (!line.startsWith("data: ")) continue;
           const jsonStr = line.slice(6);
           if (!jsonStr.trim()) continue;
+
+          // Only catch JSON parse failures — let real errors propagate
+          let event;
           try {
-            const event = JSON.parse(jsonStr);
+            event = JSON.parse(jsonStr);
+          } catch { continue; }
 
-            // Handle pipeline status events (Feature 1)
-            if (event.type === "status") {
-              setPipelineSteps((prev) => {
-                const existing = prev.findIndex((s) => s.step === event.step);
-                const updated: PipelineStep = {
-                  step: event.step,
-                  state: event.state,
-                  result: event.result,
-                  chunks: event.chunks,
-                  sources: event.sources,
-                };
-                if (existing >= 0) {
-                  const copy = [...prev];
-                  copy[existing] = updated;
-                  return copy;
-                }
-                return [...prev, updated];
-              });
-            }
+          if (event.type === "status") {
+            setPipelineSteps((prev) => {
+              const existing = prev.findIndex((s) => s.step === event.step);
+              const updated: PipelineStep = {
+                step: event.step,
+                state: event.state,
+                result: event.result,
+                chunks: event.chunks,
+                sources: event.sources,
+              };
+              if (existing >= 0) {
+                const copy = [...prev];
+                copy[existing] = updated;
+                return copy;
+              }
+              return [...prev, updated];
+            });
+          }
 
-            if (event.type === "token") {
-              accumulated += event.text;
-              let displayText = accumulated;
-              const artifactStart = displayText.indexOf('<artifact type="react">');
-              if (artifactStart !== -1) displayText = displayText.substring(0, artifactStart).trim();
-              setStreamingText(displayText);
-            }
-          } catch { /* skip */ }
+          if (event.type === "error") {
+            throw new Error(event.message);  // now propagates to outer catch
+          }
+
+          if (event.type === "token") {
+            accumulated += event.text;
+            let displayText = accumulated;
+            const artifactStart = displayText.indexOf('<artifact type="react">');
+            if (artifactStart !== -1) displayText = displayText.substring(0, artifactStart).trim();
+            setStreamingText(displayText);
+          }
         }
       }
 
@@ -944,7 +1134,7 @@ export default function Home() {
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Unknown error";
       setToast(errorMsg);
-      setMessages((prev) => [...prev, { role: "assistant", content: `**Connection error:** ${errorMsg}\n\nMake sure the Python backend is running on ${API_URL}` }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: `**Error:** ${errorMsg}` }]);
       setStreamingText("");
     } finally {
       setLoading(false);
@@ -957,6 +1147,9 @@ export default function Home() {
 
   const isEmpty = messages.length === 0 && !streamingText;
 
+  // Get current model label for header display
+  const currentModelLabel = MODEL_OPTIONS.find((m) => m.value === selectedModel)?.label || selectedModel;
+
   return (
     <div
       className="h-screen flex flex-col relative overflow-hidden"
@@ -966,6 +1159,14 @@ export default function Home() {
       onDragLeave={() => { dragCountRef.current--; if (dragCountRef.current <= 0) { dragCountRef.current = 0; setDragOver(false); } }}
       onDrop={(e) => { dragCountRef.current = 0; handleDrop(e); }}
     >
+      {/* API Key Modal */}
+      <ApiKeyModal
+        open={showApiKeyModal}
+        onSave={handleApiKeySave}
+        initialKey={apiKey}
+        initialModel={selectedModel}
+      />
+
       {/* Sidebar */}
       <Sidebar
         open={sidebarOpen}
@@ -1021,7 +1222,26 @@ export default function Home() {
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>AI Welding Assistant</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          {/* Model badge */}
+          {apiKeyReady && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full hidden sm:inline-block" style={{ background: "var(--accent-muted)", color: "var(--accent-text)", border: "1px solid rgba(249,115,22,0.2)" }}>
+              {currentModelLabel}
+            </span>
+          )}
+
           <ThemeToggle dark={dark} onToggle={toggleTheme} />
+
+          {/* Settings (API key) button */}
+          <button
+            onClick={() => setShowApiKeyModal(true)}
+            className="p-1.5 rounded-md transition-colors"
+            style={{ color: "var(--text-muted)", background: "transparent" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-secondary)"; e.currentTarget.style.color = "var(--text-secondary)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-muted)"; }}
+            title="API key & model settings"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+          </button>
 
           {/* New Chat button */}
           {messages.length > 0 && (

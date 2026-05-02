@@ -3,7 +3,7 @@ import re
 import json
 import chromadb
 from anthropic import Anthropic
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -39,9 +39,27 @@ MODEL = os.getenv("CLAUDE_MODEL", "claude-haiku-4-5")
 # Classifier always uses Haiku regardless of MODEL — cheap, fast, no need for Sonnet
 CLASSIFIER_MODEL = "claude-haiku-4-5"
 
-client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+# Default server client (uses env var API key)
+# DEFAULT_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+# client = Anthropic(api_key=DEFAULT_API_KEY)
+
 chroma = chromadb.PersistentClient(path="./chroma_db")
 collection = chroma.get_or_create_collection(name="vulcan_manual")
+
+
+# --- Helper: get Anthropic client + model for a request ---
+
+def get_client_and_model(request: Request) -> tuple[Anthropic, str]:
+    user_key = request.headers.get("x-api-key")
+    user_model = request.headers.get("x-model")
+
+    if not user_key:
+        raise ValueError("No API key provided")
+
+    req_client = Anthropic(api_key=user_key)
+    req_model = user_model if user_model else MODEL
+
+    return req_client, req_model
 
 
 # --- BM25 index (built once at startup from ChromaDB contents) ---
@@ -169,10 +187,10 @@ Classify the user's question into EXACTLY ONE of these 5 categories:
 
 Respond with ONLY the category name, nothing else. No explanation, no punctuation. Just one of: polarity, duty_cycle, troubleshoot, settings, general"""
 
-def classify_question(question: str) -> str:
-    """Classify question using Claude Haiku. ~$0.0003 per call. Always uses latest Haiku regardless of MODEL env var."""
+def classify_question(question: str, req_client: Anthropic) -> str:
+    """Classify question using Claude Haiku. ~$0.0003 per call. Always uses Haiku regardless of MODEL."""
     try:
-        response = client.messages.create(
+        response = req_client.messages.create(
             model=CLASSIFIER_MODEL,
             max_tokens=10,  # category name is at most 12 chars
             system=CLASSIFIER_PROMPT,
@@ -237,7 +255,7 @@ The text response and the artifact must NOT duplicate informative information wh
 - The artifact handles all detailed logic, interaction, decision-making, and visuals.
 - The text must be minimal (4-5 short sentences max).
 - The text should ONLY:
-  1. Briefly acknowledge or restate the user’s problem, present symptoms and
+  1. Briefly acknowledge or restate the user's problem, present symptoms and
   2. Direct the user to use the interactive artifact below.
 
 STRICTLY AVOID in text:
@@ -398,7 +416,7 @@ def build_messages(question: str, context: str, history: list[ChatMessage] | Non
 
 # --- SSE streaming generator ---
 
-async def stream_response(request: QueryRequest):
+async def stream_response(request: QueryRequest, req_client: Anthropic, req_model: str):
     """Generator that yields SSE events with Claude's streaming tokens.
     
     Emits status events at each pipeline stage for frontend tool-use indicators:
@@ -410,7 +428,7 @@ async def stream_response(request: QueryRequest):
     status_event = json.dumps({"type": "status", "step": "classify", "state": "running"})
     yield f"data: {status_event}\n\n"
 
-    question_type = classify_question(request.question)
+    question_type = classify_question(request.question, req_client)
 
     status_event = json.dumps({"type": "status", "step": "classify", "state": "done", "result": question_type})
     yield f"data: {status_event}\n\n"
@@ -464,31 +482,46 @@ async def stream_response(request: QueryRequest):
     meta_event = json.dumps({
         "type": "metadata",
         "question_type": question_type,
-        "model": MODEL,
+        "model": req_model,
     })
     yield f"data: {meta_event}\n\n"
 
-    # Step 4: Stream Claude's response token by token
+
+# Step 4: Stream Claude's response token by token
     total_input_tokens = 0
     total_output_tokens = 0
 
-    with client.messages.stream(
-        model=MODEL,
-        max_tokens=8192,
-        system=system_prompt,
-        messages=messages,
-    ) as stream:
-        for text in stream.text_stream:
-            token_event = json.dumps({
-                "type": "token",
-                "text": text,
-            })
-            yield f"data: {token_event}\n\n"
+    try:
+        with req_client.messages.stream(
+            model=req_model,
+            max_tokens=8192,
+            system=system_prompt,
+            messages=messages,
+        ) as stream:
+            for text in stream.text_stream:
+                token_event = json.dumps({
+                    "type": "token",
+                    "text": text,
+                })
+                yield f"data: {token_event}\n\n"
 
-        # After stream ends, get final usage stats
-        final_message = stream.get_final_message()
-        total_input_tokens = final_message.usage.input_tokens
-        total_output_tokens = final_message.usage.output_tokens
+            # After stream ends, get final usage stats
+            final_message = stream.get_final_message()
+            total_input_tokens = final_message.usage.input_tokens
+            total_output_tokens = final_message.usage.output_tokens
+
+    except Exception as e:
+        error_msg = str(e)
+        if "401" in error_msg or "authentication" in error_msg.lower() or "invalid" in error_msg.lower():
+            error_event = json.dumps({"type": "error", "message": "Invalid API key. Please check your key in settings."})
+        elif "404" in error_msg or "not_found" in error_msg:
+            error_event = json.dumps({"type": "error", "message": f"Model not found: {req_model}. Try a different model."})
+        elif "429" in error_msg or "rate" in error_msg.lower():
+            error_event = json.dumps({"type": "error", "message": "Rate limited. Please wait a moment and try again."})
+        else:
+            error_event = json.dumps({"type": "error", "message": f"API error: {error_msg}"})
+        yield f"data: {error_event}\n\n"
+        return
 
     # Step 5: Mark generate as done + send done event with token usage
     status_event = json.dumps({"type": "status", "step": "generate", "state": "done"})
@@ -504,17 +537,22 @@ async def stream_response(request: QueryRequest):
 # --- Main query endpoint (now streaming) ---
 
 @app.post("/query")
-async def query(request: QueryRequest):
+async def query(request: QueryRequest, raw_request: Request):
+    try:
+        req_client, req_model = get_client_and_model(raw_request)
+    except ValueError:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=401, content={"error": "API key required. Please add your key in settings."})
+
     return StreamingResponse(
-        stream_response(request),
+        stream_response(request, req_client, req_model),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",  # disable nginx buffering if deployed behind nginx
+            "X-Accel-Buffering": "no",
         },
     )
-
 
 @app.get("/health")
 async def health():
