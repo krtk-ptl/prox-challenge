@@ -2,16 +2,7 @@
 
 # Vulcan OmniPro 220 - AI Welding Assistant
 
-**A multimodal AI agent that answers technical welding questions using the machine's own manual.**
-
 [![Live Demo](https://img.shields.io/badge/Live_Demo-prox--vulcan--ai.vercel.app-f97316?style=for-the-badge)](https://prox-vulcan-ai.vercel.app)
-
-[![Python](https://img.shields.io/badge/Python-3.12-3776ab?style=flat-square&logo=python&logoColor=white)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org)
-[![Claude](https://img.shields.io/badge/Claude-Haiku_4.5-cc785c?style=flat-square)](https://anthropic.com)
-[![Eval](https://img.shields.io/badge/Eval-6%2F6-brightgreen?style=flat-square)]()
-[![Stress Test](https://img.shields.io/badge/Stress_Test-50%2F50-brightgreen?style=flat-square)]()
 
 </div>
 
@@ -220,19 +211,7 @@ The BM25 index is built once at server startup from the ChromaDB contents. Both 
 | `quick-start-guide.pdf` | 2 | Abbreviated setup with diagrams | pdfplumber (text) |
 | `selection-chart.pdf` | 1 | Process selection matrix, pure image with no extractable text | Claude Vision API |
 
-### Why pdfplumber Over pypdf
-
-The owner's manual has critical data locked in tables: duty cycle specs, amperage ranges, troubleshooting matrices. pypdf extracts these as flat text, destroying row/column structure. A query like "duty cycle at 200A on 240V" retrieves garbled text where "200A" and "25%" are no longer associated.
-
-pdfplumber preserves table structure as markdown:
-
-```
-| Amperage | Duty Cycle | Weld Time | Rest Time |
-| --- | --- | --- | --- |
-| 200A | 25% | 2.5 min | 7.5 min |
-| 130A | 60% | 6 min | 4 min |
-| 115A | 100% | 10 min | 0 min |
-```
+pdfplumber was chosen over pypdf because the manual's critical data lives in tables (duty cycles, amperage ranges, troubleshooting matrices). pypdf destroys row/column structure, making values like "200A" and "25%" no longer associated. pdfplumber extracts tables as structured markdown rows, preserving these relationships.
 
 ### Vision Extraction for Image-Based PDFs
 
@@ -455,19 +434,6 @@ Both scripts are idempotent.
 - **Stress test judge mode:** The stress test checks for crashes and errors, not correctness. Correctness is eval.py's domain (6/6 with LLM judge).
 - **Single-product scope:** The agent only knows the Vulcan OmniPro 220. It will say so if asked about other welders.
 - **Artifact token budget:** Artifacts are capped at ~180 lines to avoid truncation. Complex troubleshooting flowcharts occasionally hit this limit and simplify their branching.
-
----
-
-## Cost Per Query
-
-| Component | Cost |
-|-----------|------|
-| Classifier (Haiku, 10 tokens out) | ~$0.0003 |
-| Retrieval (local vector + BM25) | $0.00 |
-| Generation (Haiku, ~2000 tokens out) | ~$0.006 |
-| Generation (Sonnet, ~2000 tokens out) | ~$0.04 |
-| **Total per query (Haiku)** | **~$0.007** |
-| **Total per query (Sonnet)** | **~$0.04** |
 
 ---
 

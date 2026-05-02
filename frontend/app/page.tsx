@@ -86,14 +86,14 @@ function autoTitle(messages: Message[]): string {
 
 // ─── Theme Hook ───
 function useTheme() {
-  const [dark, setDark] = useState(true);
+  const [dark, setDark] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("vulcan-theme");
     if (stored === "light") {
       setDark(false);
       document.documentElement.classList.remove("dark");
-    } else {
+    } else if (stored === "dark") {
       setDark(true);
       document.documentElement.classList.add("dark");
     }
