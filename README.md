@@ -4,25 +4,15 @@
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-prox--vulcan--ai.vercel.app-f97316?style=for-the-badge)](https://prox-vulcan-ai.vercel.app)
 
+Backend runs on Render free tier. First request after idle takes ~30s to cold-start.
+
 </div>
 
 <br>
 
-<div align="center">
-<img src="screenshots/ui-dark.png" alt="Dark Mode" width="720">
-</div>
+![UI](screenshots/ui-dark.png)
 
-<br>
-
-> Ask about duty cycles, polarity, troubleshooting, or settings and get manual-sourced answers with interactive artifacts. Upload a photo of your weld and get an honest quality assessment cross-referenced against the manual. Every answer is grounded in the machine's own documentation. No hallucinated specs, no generic welding advice.
-
-<details>
-<summary><strong>Light Mode</strong></summary>
-<br>
-<div align="center">
-<img src="screenshots/ui-light.png" alt="Light Mode" width="720">
-</div>
-</details>
+A domain-grounded AI agent for the Vulcan OmniPro 220 multiprocess welder. Every answer is sourced from the machine's own manual, with page citations rendered as clickable badges that open the actual manual page. The agent generates interactive artifacts (polarity diagrams, duty cycle calculators, troubleshooting flowcharts, technique guides) rendered in sandboxed iframes. Upload a photo of your weld and get an honest quality assessment cross-referenced against the manual.
 
 **Video walkthrough:** _[link]_
 
@@ -30,101 +20,20 @@
 
 ## Features
 
-### RAG-Powered Answers
-Hybrid search (vector + BM25) retrieves the most relevant manual chunks. Answers cite specific page numbers, rendered as **clickable badges** that open the actual manual page in a modal overlay.
+- **Hybrid RAG search** - Vector (ChromaDB) + BM25 keyword search, merged via Reciprocal Rank Fusion. Semantic queries like "my welds are bubbly" find porosity content; exact queries like "DCEN" or "200A" match verbatim.
+- **Interactive artifacts** - Polarity wiring diagrams, duty cycle calculators, troubleshooting flowcharts, and technique angle guides. Generated as React components, rendered in sandboxed iframes with dark-themed styling.
+- **Pipeline transparency** - Animated status chips show classify > retrieve (chunk count) > generate in real time via SSE events.
+- **Multimodal input** - Drag-and-drop weld photos. Claude Vision analyzes defects (or confirms quality) and cross-references the manual. No default-to-praise: if the weld is bad, it says so.
+- **Clickable page citations** - `(Page 22)` in responses becomes a badge that opens the actual manual page in a modal overlay. Inside artifacts, page references use `postMessage` to trigger the same modal.
+- **Conversation memory** - Sidebar with auto-titled chat history (localStorage). New chat, load, delete. Last 4 exchanges sent as context for follow-ups.
+- **Document library** - Expandable panel in sidebar showing 3 ingested documents, page counts, and extraction methods.
+- **BYOK** - Users enter their own Anthropic API key (stored in browser only, never sent to backend). Model selector: Haiku 4.5, Sonnet 4.6, Opus 4.6.
+- **Dark/light theme** - Full toggle via CSS custom properties. Every element adapts, including artifact iframes.
+- **Question classification** - Claude Haiku classifies each question into one of 5 categories (polarity, duty_cycle, troubleshoot, settings, general). Each category injects a type-specific artifact prompt. Classifier is hardcoded to Haiku (~$0.0003/call) regardless of user model selection.
 
-### Interactive Artifacts
-Four tool types generated as React components, rendered in sandboxed iframes:
+![Artifacts](screenshots/artifact-dutycycle.png)
 
-<table>
-<tr>
-<td width="50%">
-
-**Polarity Diagram**
-Interactive wiring diagram with process selector (MIG / Flux-Core / TIG / Stick). Shows which cable goes to which socket.
-
-<img src="screenshots/artifact-polarity.png" alt="Polarity" width="100%">
-
-</td>
-<td width="50%">
-
-**Duty Cycle Calculator**
-Filterable table by process and voltage. Shows amperage, duty cycle %, weld time, and rest time per 10-minute cycle.
-
-<img src="screenshots/artifact-dutycycle.png" alt="Duty Cycle" width="100%">
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-**Troubleshooting Flowchart**
-Clickable decision tree that branches through Yes/No questions to specific manual fixes. Every branch ends at a concrete fix or "Call Vulcan support."
-
-<img src="screenshots/artifact-troubleshoot.png" alt="Troubleshoot" width="100%">
-
-</td>
-<td width="50%">
-
-**Visual Technique Guides**
-Angle diagrams, drag vs push technique, joint types. Generated on demand when users ask about technique.
-
-<img src="screenshots/artifact-angles.png" alt="Angles" width="100%">
-
-</td>
-</tr>
-</table>
-
-### Pipeline Transparency
-Animated status chips show each step in real time: **classify** > **retrieve** (with chunk count) > **generate**.
-
-<img src="screenshots/generation.png" alt="Pipeline" width="720">
-
-### Multimodal Weld Analysis
-Drag-and-drop or click to upload a weld photo. Claude Vision analyzes it, identifies defects (or confirms quality), and references relevant manual sections. The system avoids the default-to-praise failure mode: if the weld is bad, it says so.
-
-<table>
-<tr>
-<td width="50%">
-<img src="screenshots/multimodal-1.png" alt="Weld Analysis 1" width="100%">
-</td>
-<td width="50%">
-<img src="screenshots/multimodal-2.png" alt="Weld Analysis 2" width="100%">
-</td>
-</tr>
-</table>
-
-### More Features
-
-<table>
-<tr>
-<td width="50%">
-
-**Conversation Memory** - Sidebar with auto-titled chat history (localStorage). New chat, load, delete. Last 4 exchanges sent as context.
-
-**Document Library** - Expandable panel showing 3 ingested docs, page counts, and extraction methods.
-
-</td>
-<td width="50%">
-
-**BYOK (Bring Your Own Key)** - API key stored in browser only, never sent to backend. Model selector: Haiku 4.5 / Sonnet 4.6 / Opus 4.6.
-
-**Dark/Light Theme** - Full toggle via CSS custom properties. Every element adapts, including artifacts.
-
-</td>
-</tr>
-</table>
-
-<table>
-<tr>
-<td width="50%">
-<img src="screenshots/sidebar.png" alt="Sidebar" width="100%">
-</td>
-<td width="50%">
-<img src="screenshots/api-key-modal.png" alt="API Key Modal" width="100%">
-</td>
-</tr>
-</table>
+![Multimodal](screenshots/multimodal.png)
 
 ---
 
@@ -179,25 +88,17 @@ User message (text + optional image)
 | `error` | `{message}` | API errors (401, 404, 429) with user-friendly messages |
 | `done` | `{tokens_used}` | Stream complete with total token usage |
 
----
+### Hybrid Search
 
-## Hybrid Search: Why Both Vector and BM25
+The system runs both ChromaDB vector search and BM25 keyword search on every query, then merges with Reciprocal Rank Fusion (`RRF_score = 1/(rank_vector + 60) + 1/(rank_bm25 + 60)`). Chunks appearing in both lists get boosted. A 50% threshold filter drops weak matches. Retrieval depth varies by question type: troubleshooting pulls 7 chunks, polarity pulls 4. Both searches are local, zero API cost. The BM25 index is built once at server startup.
 
-Technical welding queries fall into two categories that a single search mode cannot cover:
+### Artifact Rendering
 
-**Semantic queries** like "my welds are bubbly and full of holes" need vector similarity to find porosity content, even though the word "porosity" never appears in the query.
+Claude's response contains React code in `<artifact type="react">` tags. The frontend extracts this and renders it in a sandboxed iframe with React 18, ReactDOM, and Babel (loaded sequentially from CDN to prevent race conditions). `sandbox="allow-scripts"` with no `allow-same-origin`. Function-name aliasing maps any component name to `Component`. ResizeObserver dynamically adjusts iframe height (capped at 520px). Dark theme CSS is injected into the iframe to match the parent app.
 
-**Exact-term queries** like "DCEN polarity", "Dinse socket", or "duty cycle at 200A" need keyword matching because embedding models handle niche abbreviations poorly.
+### Conversation State
 
-The system runs both searches and merges results using Reciprocal Rank Fusion:
-
-```
-RRF_score(chunk) = 1/(rank_vector + 60) + 1/(rank_bm25 + 60)
-```
-
-Chunks appearing in both result lists get boosted. A 50% threshold filter drops weak chunks that only marginally match. Retrieval depth varies by question type: troubleshooting pulls 7 chunks, polarity pulls 4.
-
-The BM25 index is built once at server startup from the ChromaDB contents. Both searches are local, zero API cost.
+The frontend holds the full message history and sends the last 8 messages (4 exchanges) with every request. Artifact code in assistant history is stripped and replaced with `[interactive artifact was shown]` to save tokens. The backend is stateless.
 
 ---
 
@@ -205,70 +106,26 @@ The BM25 index is built once at server startup from the ChromaDB contents. Both 
 
 ### Source Material
 
-| PDF | Pages | Content | Extraction Method |
-|-----|-------|---------|-------------------|
-| `owner-manual.pdf` | 48 | Full technical reference: setup, all 4 welding processes, specs, troubleshooting tables | pdfplumber (structured table extraction) |
+| PDF | Pages | Content | Extraction |
+|-----|-------|---------|------------|
+| `owner-manual.pdf` | 48 | Full technical reference: setup, all 4 processes, specs, troubleshooting | pdfplumber (text + tables) |
 | `quick-start-guide.pdf` | 2 | Abbreviated setup with diagrams | pdfplumber (text) |
-| `selection-chart.pdf` | 1 | Process selection matrix, pure image with no extractable text | Claude Vision API |
+| `selection-chart.pdf` | 1 | Process selection matrix (pure image, no extractable text) | Claude Vision API |
 
-pdfplumber was chosen over pypdf because the manual's critical data lives in tables (duty cycles, amperage ranges, troubleshooting matrices). pypdf destroys row/column structure, making values like "200A" and "25%" no longer associated. pdfplumber extracts tables as structured markdown rows, preserving these relationships.
+pdfplumber was chosen over pypdf because the manual's critical data lives in tables (duty cycles, amperage ranges, troubleshooting matrices). pypdf destroys row/column structure, making values like "200A" and "25%" no longer associated. pdfplumber extracts tables as structured markdown, preserving these relationships.
 
-### Vision Extraction for Image-Based PDFs
-
-`selection-chart.pdf` yields 0 characters from any text extractor. `ingest_vision.py` converts each page to JPEG at 200 DPI via Poppler, sends it to Claude Vision with a structured extraction prompt, and ingests the result into ChromaDB with `extraction: "vision"` metadata. Cost: ~$0.02-0.05.
+`selection-chart.pdf` yields 0 characters from any text extractor. `ingest_vision.py` converts each page to JPEG at 200 DPI via Poppler, sends it to Claude Vision, and ingests the result into ChromaDB with `extraction: "vision"` metadata.
 
 ### Chunking and Storage
 
-Text is split into 500-word chunks with 50-word overlap. Table text is deduplicated against full-text extraction to avoid double-counting. ChromaDB uses all-MiniLM-L6-v2 embeddings (100% local). The pre-built index is committed to git so reviewers skip ingestion entirely.
+Text is split into 500-word chunks with 50-word overlap. Table text is deduplicated against full-text extraction. ChromaDB uses all-MiniLM-L6-v2 embeddings (100% local). The pre-built index is committed to git so reviewers skip ingestion entirely.
 
 | Metric | Value |
 |--------|-------|
 | Total chunks | 66 (64 pdfplumber + 2 vision) |
-| Chunks per query | 4-7 (varies by question type, after RRF merge) |
-| Avg retrieval tokens | ~2,900 |
+| Chunks per query | 4-7 (varies by type, after RRF) |
 | Full manual tokens | ~105,000 |
 | Cost reduction vs full context | ~97% |
-
----
-
-## Question Classification
-
-A single Claude Haiku call (`max_tokens=10`, ~$0.0003) classifies each question. The classifier is hardcoded to Haiku regardless of the user's model selection.
-
-| Category | Triggers | Artifact |
-|----------|----------|----------|
-| `polarity` | Cable connections, DCEP/DCEN, sockets, torch setup | Interactive polarity diagram with process selector |
-| `duty_cycle` | Weld time, overheating, amperage limits, rest periods | Calculator with process/voltage dropdowns |
-| `troubleshoot` | Porosity, spatter, arc issues, wire feeding, cracks | Clickable decision-tree flowchart |
-| `settings` | Voltage, wire speed, gas type, material thickness | Text-only (directs to LCD auto-recommendation system) |
-| `general` | Safety, maintenance, overview, how welding works | Text-only (artifact only if genuinely helpful) |
-
-Each category injects a type-specific artifact prompt so Claude knows exactly what format to produce.
-
----
-
-## Artifact Rendering
-
-Claude's response contains React code wrapped in `<artifact type="react">` tags. The frontend extracts this and renders it in a sandboxed iframe:
-
-- React 18 + ReactDOM loaded sequentially from unpkg CDN (sequential loading prevents blank-on-first-render race conditions)
-- Babel standalone for JSX transpilation
-- `sandbox="allow-scripts"` with no `allow-same-origin` (iframe cannot access parent DOM, cookies, or localStorage)
-- Function-name aliasing maps any component name Claude generates to `Component`
-- ResizeObserver dynamically adjusts iframe height (capped at 520px)
-- Dark theme CSS injected into iframe to match the parent app
-
-Artifacts can reference manual pages via `window.parent.postMessage({type: "openPage", page: N}, "*")`, which triggers the page image modal in the parent.
-
----
-
-## Page Citation System
-
-When the agent writes `(Page 22)` in its response, the frontend converts it into a clickable badge via regex matching in the ReactMarkdown pipeline. Clicking the badge opens a modal with a pre-rendered PNG of that manual page (generated offline by `generate_pages.py` and served from `/public/pages/`).
-
-Inside artifacts, page references are clickable via `postMessage` to the parent window.
-
-<img src="screenshots/page-renderer.png" alt="Page Renderer" width="720">
 
 ---
 
@@ -276,61 +133,46 @@ Inside artifacts, page references are clickable via `postMessage` to the parent 
 
 ### eval.py: 6 Hard Questions (6/6)
 
-Six hand-crafted test cases targeting the hardest factual retrieval scenarios. Two-layer grading:
+Six hand-crafted test cases targeting the hardest factual retrieval scenarios. Two-layer grading: keyword checks (free, instant) + LLM judge (Claude Haiku reads ground truth vs agent response, gives PASS/FAIL with reasoning).
 
-**Layer 1 (keyword):** Free, instant. Checks classifier category + required keywords in response + absence of wrong keywords.
-
-**Layer 2 (LLM judge):** Claude Haiku reads ground truth from the manual + agent response, gives PASS/FAIL with reasoning. Catches paraphrased correct answers and subtle hallucinations that keyword matching misses.
-
-| Test | Question | Tests |
-|------|----------|-------|
+| Test | Question | What It Tests |
+|------|----------|---------------|
 | T1 | Duty cycle at 200A on 240V | Exact value retrieval (25%) |
 | T2 | TIG polarity | DCEN, torch to negative terminal |
-| T3 | Porosity causes | Must list shielding gas + at least one other cause |
-| T4 | MIG settings for 1/8" steel | Must give guidance, not deflect entirely |
+| T3 | Porosity causes | Must list shielding gas + other causes |
+| T4 | MIG settings for 1/8" steel | Must give guidance, not deflect |
 | T5 | Flux-core work clamp polarity | Positive socket, DCEN |
 | T6 | "What settings should I use?" | Must ask for process, material, AND thickness |
 
 ```bash
 python eval.py --api-key sk-ant-xxx --judge    # keyword + LLM judge (~$0.04)
-python eval.py --api-key sk-ant-xxx --test T2  # single test
 ```
 
 ### stress_test.py: 50 Questions (49/50, effectively 50/50)
 
-50 questions across 6 categories: MIG setup (8), polarity (7), duty cycle (6), troubleshooting (10), settings (8), general/safety (6), edge cases (5).
-
-Tests for: crashes, timeouts, empty responses, error markers in output, and artifact brace mismatches. Does NOT check answer correctness (that is eval.py's job).
-
-The 1 "failure" was a false positive: the word "500" appeared inside artifact React code (`width: 500px`) and was incorrectly flagged as a server error. The actual response was correct and cited Page 42 with specific causes.
-
-Edge cases handled cleanly: vague questions trigger clarification requests, off-topic questions ("meaning of life") get redirected gracefully.
+50 questions across 6 categories. Tests for crashes, timeouts, empty responses, error markers, and artifact brace mismatches. The 1 "failure" was a false positive: "500" appeared inside artifact CSS (`width: 500px`), not an actual error. Edge cases handled cleanly: vague questions trigger clarification, off-topic questions get redirected.
 
 ```bash
-python stress_test.py --api-key sk-ant-xxx                    # all 50 sequential
-python stress_test.py --api-key sk-ant-xxx --start 1 --end 10 # subset
-python stress_test.py --api-key sk-ant-xxx --concurrency 3    # parallel
+python stress_test.py --api-key sk-ant-xxx
 ```
 
 ---
 
 ## Design Decisions
 
-**RAG over full-context loading.** The full 48-page manual is ~105K tokens. Sending it every query costs ~$0.30 on Sonnet. Hybrid retrieval pulls only relevant chunks at ~$0.008/query. 97% cost reduction.
+**RAG over full-context.** The full manual is ~105K tokens (~$0.30/query on Sonnet). Hybrid retrieval pulls only relevant chunks at ~$0.008/query. 97% cost reduction.
 
-**Hybrid search over pure vector.** Pure cosine similarity misses exact terms like "DCEN" and "200A" because embedding models handle niche abbreviations poorly. BM25 catches these. RRF merges both.
+**Hybrid search over pure vector.** Embedding models miss niche terms like "DCEN" and "200A". BM25 catches them. RRF merges both.
 
-**Claude classifier over keyword matching.** The initial implementation used hardcoded keyword matching. It was brittle: "my cables are backwards" missed, "how long can I run it?" missed. A single Haiku call handles natural language at negligible cost.
+**Claude classifier over keyword matching.** Hardcoded keyword matching was brittle ("my cables are backwards" missed). A single Haiku call handles natural language at negligible cost.
 
-**SSE streaming over request/response.** Claude generates long responses with artifacts (2000+ tokens). Without streaming, the user stares at a spinner for 5-8 seconds. With SSE, the first token is visible in 1-2 seconds.
+**SSE streaming over request/response.** Without streaming, users wait 5-8 seconds. With SSE, the first token appears in 1-2 seconds.
 
-**BYOK over server-side key.** The user's API key is stored in the browser and sent via `X-API-Key` header. The backend never stores keys. This means anyone can try the demo without sharing credentials, and the backend has zero credential management.
+**BYOK over server-side key.** API key stays in the browser. Backend never stores credentials.
 
-**Stateless backend.** The frontend owns conversation history and sends the last 4 exchanges per request. The backend is a pure function. No sessions, no database beyond the read-only vector index.
+**Stateless backend.** Frontend owns conversation history. Backend is a pure function.
 
-**Pre-committed vector index.** The ingestion pipeline runs locally once. The resulting ChromaDB directory is committed to git. Reviewers clone, install, and run with zero ingestion wait.
-
-**Hardcoded polarity facts.** The system prompt contains manually verified polarity values for all 4 processes. If retrieved chunks contradict these (due to noisy extraction), the hardcoded facts take priority. This prevents the most dangerous category of error: wrong cable connections.
+**Hardcoded polarity facts.** The system prompt contains manually verified polarity values for all 4 processes. If retrieved chunks contradict these (due to noisy extraction), the hardcoded facts take priority. This prevents the most dangerous error category: wrong cable connections.
 
 ---
 
@@ -340,30 +182,30 @@ python stress_test.py --api-key sk-ant-xxx --concurrency 3    # parallel
 prox-challenge/
 ├── api.py                 # FastAPI backend: classifier, hybrid search, SSE streaming
 ├── ingest.py              # PDF text+table extraction (pdfplumber) to ChromaDB
-├── ingest_vision.py       # Vision extraction for image-based PDFs to ChromaDB
-├── generate_pages.py      # Renders manual pages to PNGs for the citation modal
-├── requirements.txt       # Python: anthropic, fastapi, chromadb, pdfplumber, rank-bm25
+├── ingest_vision.py       # Vision extraction for image-based PDFs
+├── generate_pages.py      # Renders manual pages to PNGs for citation modal
+├── requirements.txt       # anthropic, fastapi, chromadb, pdfplumber, rank-bm25
 ├── render.yaml            # Render deployment config
 ├── .env.example           # Template for ANTHROPIC_API_KEY
-├── chroma_db/             # Pre-committed vector index (66 chunks, git-tracked)
+├── chroma_db/             # Pre-committed vector index (66 chunks)
 ├── files/                 # Source PDFs (owner manual, quick start, selection chart)
 ├── static/                # Manual page images served by FastAPI
 │
 ├── eval/
-│   ├── eval.py            # 6-question eval with keyword + LLM judge grading
+│   ├── eval.py            # 6-question eval: keyword + LLM judge
 │   └── stress_test.py     # 50-question crash/stability test
 │
 └── frontend/              # Next.js 16 + React 19 + Tailwind v4
     ├── app/
     │   ├── page.tsx       # Single-file app: chat UI, artifact renderer, sidebar,
-    │   │                  #   pipeline indicator, image upload, page citation modal,
+    │   │                  #   pipeline indicators, image upload, page citations,
     │   │                  #   conversation history, API key modal, theme toggle
     │   ├── layout.tsx     # App layout + metadata
     │   └── globals.css    # CSS custom properties for dark/light theming
     ├── public/
-    │   ├── pages/         # Pre-rendered manual page PNGs for citation modal
-    │   ├── logo.png       # Vulcan V icon
-    │   └── prox-logo.png  # Prox branding
+    │   ├── pages/         # Pre-rendered manual page PNGs
+    │   ├── logo.png
+    │   └── prox-logo.png
     └── package.json
 ```
 
@@ -374,43 +216,33 @@ prox-challenge/
 ```bash
 git clone https://github.com/krtk-ptl/prox-challenge.git
 cd prox-challenge
-
 cp .env.example .env
-# Required: add your ANTHROPIC_API_KEY (used only for ingestion/eval scripts)
+# Add your ANTHROPIC_API_KEY (used only for ingestion/eval scripts)
 ```
 
-**Start backend** (Terminal 1):
+**Backend** (Terminal 1):
 ```bash
 pip install -r requirements.txt
 python -m uvicorn api:app --port 8000
 ```
 
-**Start frontend** (Terminal 2):
+**Frontend** (Terminal 2):
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-Open **http://localhost:3000**, enter your Anthropic API key in the modal, and start asking.
+Open **http://localhost:3000**, enter your Anthropic API key in the modal, and start asking. The pre-built ChromaDB index ships with the repo (66 chunks). No ingestion step required.
 
-The pre-built ChromaDB index ships with the repo (66 chunks). No ingestion step required. The only thing the running app needs is an API key entered in the browser.
+### Regenerating the Index
 
----
-
-## Regenerating the Index
-
-Only needed if you modify parsing or chunking logic. The app works without this step.
+Only needed if you modify parsing or chunking logic.
 
 ```bash
-# Text + table extraction (free, local only)
-python ingest.py
-
-# Vision extraction for image-based PDFs (~$0.02-0.05, uses Claude Vision)
-python ingest_vision.py
+python ingest.py              # text + tables (free, local)
+python ingest_vision.py       # image PDFs (~$0.02-0.05, Claude Vision)
 ```
-
-Both scripts are idempotent.
 
 ---
 
@@ -421,19 +253,19 @@ Both scripts are idempotent.
 | Frontend | Next.js 16, React 19, Tailwind CSS v4, react-markdown, remark-gfm |
 | Backend | Python 3.12, FastAPI, Anthropic SDK, SSE streaming |
 | PDF Extraction | pdfplumber (structured tables), Claude Vision API (image PDFs) |
-| Search | Hybrid: ChromaDB vector (all-MiniLM-L6-v2) + BM25 (rank-bm25), merged via RRF |
+| Search | Hybrid: ChromaDB (all-MiniLM-L6-v2) + BM25 (rank-bm25), merged via RRF |
 | Classification | Claude Haiku 4.5 (hardcoded, ~$0.0003/call) |
-| Generation | Claude (user-configurable: Haiku 4.5 / Sonnet 4.6 / Opus 4.6) |
+| Generation | Claude (configurable: Haiku 4.5 / Sonnet 4.6 / Opus 4.6) |
 | Deployment | Vercel (frontend), Render (backend) |
 
 ---
 
 ## Known Limitations
 
-- **Response time:** 11-17s average. Render free-tier cold starts + Haiku classifier + main model generation. A production deployment on paid infrastructure would cut this significantly.
-- **Stress test judge mode:** The stress test checks for crashes and errors, not correctness. Correctness is eval.py's domain (6/6 with LLM judge).
-- **Single-product scope:** The agent only knows the Vulcan OmniPro 220. It will say so if asked about other welders.
-- **Artifact token budget:** Artifacts are capped at ~180 lines to avoid truncation. Complex troubleshooting flowcharts occasionally hit this limit and simplify their branching.
+- **Response time:** 11-17s average (Render free-tier cold starts + classifier + generation). Paid infrastructure would cut this significantly.
+- **Stress test scope:** Tests for crashes/errors, not correctness. Correctness is eval.py's domain (6/6 with LLM judge).
+- **Single product:** Only knows the Vulcan OmniPro 220.
+- **Artifact budget:** Capped at ~180 lines to avoid truncation. Complex flowcharts occasionally simplify their branching.
 
 ---
 
