@@ -23,7 +23,7 @@ A domain-grounded AI agent for the Vulcan OmniPro 220 multiprocess welder. Every
 - **Pipeline transparency** - Animated status chips show classify > retrieve (chunk count) > generate in real time via SSE events.
 - **Multimodal input** - Drag-and-drop weld photos. Claude Vision analyzes defects (or confirms quality) and cross-references the manual. No default-to-praise: if the weld is bad, it says so.
 - **Clickable page citations** - Page references in responses are rendered as clickable badges that open the actual manual page in a modal overlay. Inside artifacts, page references use `postMessage` to trigger the same modal.
-- **Conversation memory** - Sidebar with auto-titled chat history (localStorage). New chat, load, delete. Last 4 exchanges sent as context for follow-ups.
+- **Conversation memory** - Sidebar with auto-titled chat history (localStorage). New chat, load, delete. Last 8 messages (4 exchanges) sent as context for follow-ups.
 - **Document library** - Expandable panel in sidebar showing 3 ingested documents, page counts, and extraction methods.
 - **BYOK** - Users enter their own Anthropic API key (stored in browser only, never sent to backend). Model selector: Haiku 4.5, Sonnet 4.6, Opus 4.6.
 - **Dark/light theme** - Full toggle via CSS custom properties. Every element adapts, including artifact iframes.
@@ -149,7 +149,7 @@ Six hand-crafted test cases targeting the hardest factual retrieval scenarios. T
 python eval.py --api-key sk-ant-xxx --model claude-sonnet-4-6 --judge  ## keyword + LLM judge
 ```
 
-### stress_test.py: 50 Questions (49/50, effectively 50/50)
+### stress_test.py: 50 Questions (49/50)
 
 50 questions across 6 categories. Tests for crashes, timeouts, empty responses, error markers, and artifact brace mismatches. The 1 "failure" was a false positive: "500" appeared inside artifact CSS (`width: 500px`), not an actual error. Edge cases handled cleanly: vague questions trigger clarification, off-topic questions get redirected.
 
@@ -218,8 +218,10 @@ prox-challenge/
 git clone https://github.com/krtk-ptl/prox-challenge.git
 cd prox-challenge
 cp .env.example .env
-# Add your ANTHROPIC_API_KEY (used only for ingestion/eval scripts)
+# Add your ANTHROPIC_API_KEY (only used by ingestion and eval scripts; the app itself is BYOK)
 ```
+
+> **Want to skip local setup?** Try the live version at [prox-vulcan-ai.vercel.app](https://prox-vulcan-ai.vercel.app).
 
 **Backend** (Terminal 1):
 ```bash
