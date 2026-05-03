@@ -2,7 +2,7 @@
 
 # Vulcan OmniPro 220 - AI Welding Assistant
 
-*Live on [prox-vulcan-ai.vercel.app](https://prox-vulcan-ai.vercel.app)*
+*<span style="color:#22c55e;">●</span> [prox-vulcan-ai.vercel.app](https://prox-vulcan-ai.vercel.app)*
 
 </div>
 
