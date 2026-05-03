@@ -146,7 +146,7 @@ Six hand-crafted test cases targeting the hardest factual retrieval scenarios. T
 | T6 | "What settings should I use?" | Must ask for process, material, AND thickness |
 
 ```bash
-python eval.py --api-key sk-ant-xxx --judge    # keyword + LLM judge (~$0.04)
+python eval.py --api-key sk-ant-xxx --model claude-sonnet-4-6 --judge  ## keyword + LLM judge
 ```
 
 ### stress_test.py: 50 Questions (49/50, effectively 50/50)
@@ -154,7 +154,7 @@ python eval.py --api-key sk-ant-xxx --judge    # keyword + LLM judge (~$0.04)
 50 questions across 6 categories. Tests for crashes, timeouts, empty responses, error markers, and artifact brace mismatches. The 1 "failure" was a false positive: "500" appeared inside artifact CSS (`width: 500px`), not an actual error. Edge cases handled cleanly: vague questions trigger clarification, off-topic questions get redirected.
 
 ```bash
-python stress_test.py --api-key sk-ant-xxx
+python stress_test.py --api-key sk-ant-xxx --model claude-sonnet-4-6    
 ```
 
 ---
