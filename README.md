@@ -2,9 +2,7 @@
 
 # Vulcan OmniPro 220 - AI Welding Assistant
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-prox--vulcan--ai.vercel.app-f97316?style=for-the-badge)](https://prox-vulcan-ai.vercel.app)
-
-Backend runs on Render free tier. First request after idle takes ~30s to cold-start.
+*Live on [prox-vulcan-ai.vercel.app](https://prox-vulcan-ai.vercel.app)*
 
 </div>
 
@@ -24,14 +22,17 @@ A domain-grounded AI agent for the Vulcan OmniPro 220 multiprocess welder. Every
 - **Interactive artifacts** - Polarity wiring diagrams, duty cycle calculators, troubleshooting flowcharts, and technique angle guides. Generated as React components, rendered in sandboxed iframes with dark-themed styling.
 - **Pipeline transparency** - Animated status chips show classify > retrieve (chunk count) > generate in real time via SSE events.
 - **Multimodal input** - Drag-and-drop weld photos. Claude Vision analyzes defects (or confirms quality) and cross-references the manual. No default-to-praise: if the weld is bad, it says so.
-- **Clickable page citations** - `(Page 22)` in responses becomes a badge that opens the actual manual page in a modal overlay. Inside artifacts, page references use `postMessage` to trigger the same modal.
+- **Clickable page citations** - Page references in responses are rendered as clickable badges that open the actual manual page in a modal overlay. Inside artifacts, page references use `postMessage` to trigger the same modal.
 - **Conversation memory** - Sidebar with auto-titled chat history (localStorage). New chat, load, delete. Last 4 exchanges sent as context for follow-ups.
 - **Document library** - Expandable panel in sidebar showing 3 ingested documents, page counts, and extraction methods.
 - **BYOK** - Users enter their own Anthropic API key (stored in browser only, never sent to backend). Model selector: Haiku 4.5, Sonnet 4.6, Opus 4.6.
 - **Dark/light theme** - Full toggle via CSS custom properties. Every element adapts, including artifact iframes.
 - **Question classification** - Claude Haiku classifies each question into one of 5 categories (polarity, duty_cycle, troubleshoot, settings, general). Each category injects a type-specific artifact prompt. Classifier is hardcoded to Haiku (~$0.0003/call) regardless of user model selection.
 
-![Artifacts](screenshots/artifact-dutycycle.png)
+<p>
+<img src="screenshots/artifact-polarity.png" alt="Polarity" width="49%">
+<img src="screenshots/artifact-dutycycle.png" alt="Duty Cycle" width="49%">
+</p>
 
 ![Multimodal](screenshots/multimodal.png)
 
@@ -262,7 +263,7 @@ python ingest_vision.py       # image PDFs (~$0.02-0.05, Claude Vision)
 
 ## Known Limitations
 
-- **Response time:** 11-17s average (Render free-tier cold starts + classifier + generation). Paid infrastructure would cut this significantly.
+- **Response time:** 11-17s average. Backend runs on Render free tier, so the first request after idle takes ~30s to cold-start. Paid infrastructure would cut this significantly.
 - **Stress test scope:** Tests for crashes/errors, not correctness. Correctness is eval.py's domain (6/6 with LLM judge).
 - **Single product:** Only knows the Vulcan OmniPro 220.
 - **Artifact budget:** Capped at ~180 lines to avoid truncation. Complex flowcharts occasionally simplify their branching.
