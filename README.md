@@ -30,8 +30,8 @@ A domain-grounded AI agent for the Vulcan OmniPro 220 multiprocess welder. Every
 - **Question classification** - Claude Haiku classifies each question into one of 5 categories (polarity, duty_cycle, troubleshoot, settings, general). Each category injects a type-specific artifact prompt. Classifier is hardcoded to Haiku (~$0.0003/call) regardless of user model selection.
 
 <p>
-<img src="screenshots/artifact-polarity.png" alt="Polarity" width="49%">
-<img src="screenshots/artifact-dutycycle.png" alt="Duty Cycle" width="49%">
+<img src="screenshots/artifact-polarity.png" alt="Polarity" height="300">
+<img src="screenshots/artifact-dutycycle.png" alt="Duty Cycle" height="300">
 </p>
 
 ![Multimodal](screenshots/multimodal.png)
