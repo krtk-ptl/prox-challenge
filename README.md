@@ -12,7 +12,7 @@
 
 A domain-grounded AI agent for the Vulcan OmniPro 220 multiprocess welder. Every answer is sourced from the machine's own manual, with page citations rendered as clickable badges that open the actual manual page. The agent generates interactive artifacts (polarity diagrams, duty cycle calculators, troubleshooting flowcharts, technique guides) rendered in sandboxed iframes. Upload a photo of your weld and get an honest quality assessment cross-referenced against the manual.
 
-**Video walkthrough:** _[link]_
+**Video walkthrough:** [Watch on YouTube](https://youtu.be/8ABXC3LO0Qw)
 
 ---
 
@@ -151,7 +151,7 @@ python eval.py --api-key sk-ant-xxx --model claude-sonnet-4-6 --judge  ## keywor
 
 ### stress_test.py: 50 Questions (49/50)
 
-50 questions across 6 categories. Tests for crashes, timeouts, empty responses, error markers, and artifact brace mismatches. The 1 "failure" was a false positive: "500" appeared inside artifact CSS (`width: 500px`), not an actual error. Edge cases handled cleanly: vague questions trigger clarification, off-topic questions get redirected.
+50 questions across 6 categories. Tests for crashes, timeouts, empty responses, error markers, and artifact brace mismatches. Edge cases handled cleanly: vague questions trigger clarification, off-topic questions get redirected.
 
 ```bash
 python stress_test.py --api-key sk-ant-xxx --model claude-sonnet-4-6    
@@ -265,7 +265,7 @@ python ingest_vision.py       # image PDFs (~$0.02-0.05, Claude Vision)
 
 ## Known Limitations
 
-- **Response time:** 11-17s average. Backend runs on Render free tier, so the first request after idle takes ~30s to cold-start. Paid infrastructure would cut this significantly.
+- **Response time:** 11-17s average. Backend runs on Render free tier, so the first request after idle takes ~30s to cold-start — if the first request hangs, just wait and retry. Paid infrastructure would cut this significantly.
 - **Stress test scope:** Tests for crashes/errors, not correctness. Correctness is eval.py's domain (6/6 with LLM judge).
 - **Single product:** Only knows the Vulcan OmniPro 220.
 - **Artifact budget:** Capped at ~180 lines to avoid truncation. Complex flowcharts occasionally simplify their branching.
